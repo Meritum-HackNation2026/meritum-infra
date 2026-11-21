@@ -27,4 +27,8 @@ for app in api worker; do
 done
 # Both env files of an env take their lines from m_app_env.
 [ "$(grep -cF 'm_app_env ' "$here/setup.sh")" = 2 ] || fail "setup.sh: api and worker env files must both call m_app_env"
+grep -qF "corpus_url() { m_db_url \"\$(m_role worker prd)\" \"\$(pw worker prd)\" meritum corpus; }" "$here/setup.sh" \
+  || fail "setup.sh: corpus URL must use the prd worker role and corpus search path"
+grep -qF "m_app_env worker \"\$env\" \"\$(corpus_url)\"" "$here/setup.sh" \
+  || fail "setup.sh: worker env files must receive the corpus URL"
 echo "app env: ok"
