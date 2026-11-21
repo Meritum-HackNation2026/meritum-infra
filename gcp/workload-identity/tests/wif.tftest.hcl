@@ -16,6 +16,13 @@ run "server_certificate_only" {
   command = plan
 
   assert {
+    condition = (
+      google_iam_workload_identity_pool.onprem.workload_identity_pool_id == "meritum-onprem" &&
+      google_iam_workload_identity_pool_provider.server.workload_identity_pool_provider_id == "dellpromaxgb10"
+    )
+    error_message = "Pool and provider IDs are the audience in wif.sh (M_WIF_POOL, M_WIF_PROVIDER)."
+  }
+  assert {
     condition     = one(one(one(google_iam_workload_identity_pool_provider.server.x509).trust_store).trust_anchors).pem_certificate == "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----"
     error_message = "Only the server's CA is trusted, trimmed: the IAM API rejects a trailing newline."
   }

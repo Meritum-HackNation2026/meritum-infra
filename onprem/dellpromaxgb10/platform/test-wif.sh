@@ -12,6 +12,7 @@ here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 dir=$(mktemp -d); trap 'rm -rf "$dir"' EXIT
 serial() { openssl x509 -noout -serial -in "$dir/$1/cert.pem"; }
+pubkey() { openssl x509 -noout -pubkey -in "$dir/$1/cert.pem"; }
 
 m_wif_issue "$dir" meritum-test 123456789 2>/dev/null
 openssl x509 -noout -ext basicConstraints -in "$dir/ca/ca.pem" | grep -q 'CA:TRUE' || fail "ca.pem is not a CA"
@@ -33,13 +34,17 @@ grep -qx "MERITUM_GCP_MOUNTS=$dir/meritum-backend:$M_WIF_MOUNT/meritum-backend:r
 grep -qx "MERITUM_GCP_MOUNTS=$dir/meritum-worker:$M_WIF_MOUNT/meritum-worker:ro $dir/meritum-speech:$M_WIF_MOUNT/meritum-speech:ro" <<<"$worker" || fail "worker mounts: $worker"
 grep -qx "GOOGLE_APPLICATION_CREDENTIALS=$M_WIF_MOUNT/meritum-worker/credentials.json" <<<"$worker" || fail "worker credentials: $worker"
 
+m_wif_env "$dir" web meritum-test 2>/dev/null && fail "unknown app got credentials"
+
 before=$(serial meritum-backend)
 m_wif_issue "$dir" meritum-test 123456789 2>/dev/null
 [ "$(serial meritum-backend)" = "$before" ] || fail "rerun replaced a valid certificate"
 
-# A certificate expiring within M_WIF_RENEW_DAYS is renewed.
+# A certificate expiring within M_WIF_RENEW_DAYS is renewed, with a new key.
+key_before=$(pubkey meritum-backend)
 openssl req -new -key "$dir/meritum-backend/key.pem" -subj /CN=meritum-backend 2>/dev/null \
   | openssl x509 -req -days 1 -CA "$dir/ca/ca.pem" -CAkey "$dir/ca/ca.key" -set_serial 7 -out "$dir/meritum-backend/cert.pem" 2>/dev/null
 m_wif_issue "$dir" meritum-test 123456789 2>/dev/null
 [ "$(serial meritum-backend)" != "serial=07" ] || fail "expiring certificate not renewed"
+[ "$(pubkey meritum-backend)" != "$key_before" ] || fail "renewal kept the old key"
 echo "workload identity files: ok"

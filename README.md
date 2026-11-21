@@ -101,7 +101,7 @@ Koszt: ok. 0,135 USD/h za maszynę, czyli ok. 0,67 USD/h za pięć, dopóki dzia
 
 ## Stan Terraform na GCP
 
-Stan modułów z `gcp/` leży w prywatnym buckecie `agro-prj-sandbox-sd-2332277-meritum-tfstate` (`europe-central2`, wersjonowanie obiektów, publiczny dostęp zablokowany), każdy moduł pod własnym prefiksem: `gh-actions`, `storage`, `state`. Bucket zakłada moduł `gcp/state/` i trzyma w nim także własny stan. Backend GCS blokuje stan na czas `plan` i `apply`, więc dwie osoby nie nadpiszą go sobie nawzajem. Stan `gh-actions` zawiera wrażliwe wartości (hash hasła admina, klucz SSH, token rejestracji runnera), a czyta go każdy z dostępem do odczytu obiektów w projekcie.
+Stan modułów z `gcp/` leży w prywatnym buckecie `agro-prj-sandbox-sd-2332277-meritum-tfstate` (`europe-central2`, wersjonowanie obiektów, publiczny dostęp zablokowany), każdy moduł pod własnym prefiksem: `gh-actions`, `storage`, `state`, `workload-identity`. Bucket zakłada moduł `gcp/state/` i trzyma w nim także własny stan. Backend GCS blokuje stan na czas `plan` i `apply`, więc dwie osoby nie nadpiszą go sobie nawzajem. Stan `gh-actions` zawiera wrażliwe wartości (hash hasła admina, klucz SSH, token rejestracji runnera), a czyta go każdy z dostępem do odczytu obiektów w projekcie.
 
 Druga osoba potrzebuje tylko dostępu do projektu: `gcloud auth application-default login`, potem w czystym klonie `terraform -chdir=gcp/<moduł> init` i `plan`. Lokalnych plików `terraform.tfstate` nie ma i nie trzeba ich przekazywać.
 
@@ -139,7 +139,7 @@ Wybraliśmy certyfikat serwera zamiast tokenu OIDC z GitHub Actions. Token OIDC 
 | CA serwera | `~meritum-runner/meritum/gcp/ca/` (klucz `ca.key`, 600; nie trafia do kontenerów), ECDSA P-256, ważny 5 lat |
 | Certyfikaty usług | `~meritum-runner/meritum/gcp/<konto>/`: `cert.pem`, `key.pem`, `certificate_config.json` i `credentials.json` (`type: external_account`). Ważne 365 dni (Google przyjmuje najwyżej 390) |
 | Dostarczenie | workflow Platform (`setup.sh`, funkcje w `platform/wif.sh`) tworzy pliki i dopisuje do `api-<env>.env` i `worker-<env>.env`: `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS`, `MERITUM_GCP_MOUNTS`, a workerowi `MERITUM_SPEECH_CREDENTIALS`. Potrzebuje zmiennych repo `GCP_PROJECT_ID` i `GCP_PROJECT_NUMBER`; bez nich pomija ten krok z ostrzeżeniem |
-| Kontener | deploy aplikacji montuje każdy wpis z `MERITUM_GCP_MOUNTS` (`-v <host>:/etc/meritum/gcp/<konto>:ro`). Backend dostaje tylko katalog `meritum-backend`, worker `meritum-worker` i `meritum-speech`, więc backend nie podszyje się pod workera |
+| Kontener | deploy aplikacji ma montować każdy wpis z `MERITUM_GCP_MOUNTS` (`-v <host>:/etc/meritum/gcp/<konto>:ro`): backend#54 i worker#55, do tego czasu `GOOGLE_APPLICATION_CREDENTIALS` w kontenerze wskazuje na plik, którego nie ma. Backend dostaje tylko katalog `meritum-backend`, worker `meritum-worker` i `meritum-speech`, więc backend nie podszyje się pod workera |
 
 ### Wdrożenie
 
@@ -159,7 +159,7 @@ Wybraliśmy certyfikat serwera zamiast tokenu OIDC z GitHub Actions. Token OIDC 
 
 ### Rotacja
 
-- Certyfikaty usług: `setup.sh` wystawia nowy 30 dni przed wygaśnięciem, z nowym kluczem prywatnym, podpisany tym samym CA, bez zmian w Terraform. Workflow Platform trzeba więc uruchomić co najmniej raz na 11 miesięcy. Po wymianie trzeba zrestartować kontenery backendu i workera (najprościej ich deployem), bo biblioteka może trzymać stary certyfikat w pamięci.
+- Certyfikaty usług: `setup.sh` wystawia nowy 30 dni przed wygaśnięciem, z nowym kluczem prywatnym, podpisany tym samym CA, bez zmian w Terraform. Workflow Platform uruchamia się sam raz w miesiącu, więc certyfikat nie wygaśnie bez odnowienia. Po wymianie trzeba zrestartować kontenery backendu i workera (najprościej ich deployem), bo biblioteka może trzymać stary certyfikat w pamięci.
 - CA (raz na 5 lat albo po wycieku): `rm -rf ~meritum-runner/meritum/gcp` na serwerze, workflow Platform, nowy `trust_anchor_pem` w `terraform.tfvars` i `apply`, potem restart kontenerów backendu i workera. Między krokiem 2 a `apply` kontenery nie mają dostępu.
 
 ### Cofnięcie dostępu

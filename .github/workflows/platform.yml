@@ -10,6 +10,9 @@ on:
     branches: [main]
     paths: ["onprem/dellpromaxgb10/platform/**", ".github/workflows/platform.yml"]
   workflow_dispatch:
+  # Monthly: renews the GCP workload certificates 30 days before they expire (wif.sh).
+  schedule:
+    - cron: "17 3 1 * *"
 
 permissions:
   contents: read

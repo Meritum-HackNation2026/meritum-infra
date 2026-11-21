@@ -85,12 +85,14 @@ JSON
 # m_wif_env DIR APP PROJECT_ID: env file lines of APP (api | worker), its
 # credentials, project and the -v mounts of its own account directories.
 m_wif_env() {
-  local dir=$1 app=$2 project=$3 sa mounts=() own=(meritum-backend)
+  local dir=$1 app=$2 project=$3 sa mounts=() own
+  case "$app" in
+    api) own=(meritum-backend) ;;
+    worker) own=(meritum-worker meritum-speech) ;;
+    *) m_log "m_wif_env: unknown app $app"; return 1 ;;
+  esac
   printf 'GOOGLE_CLOUD_PROJECT=%s\n' "$project"
-  if [ "$app" = worker ]; then
-    own=(meritum-worker meritum-speech)
-    printf 'MERITUM_SPEECH_CREDENTIALS=%s/meritum-speech/credentials.json\n' "$M_WIF_MOUNT"
-  fi
+  [ "$app" != worker ] || printf 'MERITUM_SPEECH_CREDENTIALS=%s/meritum-speech/credentials.json\n' "$M_WIF_MOUNT"
   for sa in "${own[@]}"; do mounts+=("$dir/$sa:$M_WIF_MOUNT/$sa:ro"); done
   printf 'GOOGLE_APPLICATION_CREDENTIALS=%s/%s/credentials.json\n' "$M_WIF_MOUNT" "${own[0]}"
   printf 'MERITUM_GCP_MOUNTS=%s\n' "${mounts[*]}"
