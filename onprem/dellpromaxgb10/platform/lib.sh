@@ -33,11 +33,14 @@ m_files_volume() { printf 'meritum-files-%s' "$1"; }
 m_files_env() { printf 'MERITUM_FILES_VOLUME=%s\nMERITUM_FILES_DIR=%s\n' "$(m_files_volume "$1")" "$M_FILES_DIR"; }
 # LLM stub fixtures inside the worker image; dev runs the stub, which without them fails every check (worker#68).
 M_LLM_STUB_FIXTURES="/app/features/fixtures/llm_stub_answer.json"
-# Env file lines of app $1 (api, worker) in env $2: meritum-core repositories in PostgreSQL
-# (the default, memory, loses records on redeploy) and, for the dev worker, the stub fixtures.
+# Env file lines of app $1 (api, worker) in env $2: meritum-core repositories in PostgreSQL,
+# the dev worker's stub fixtures, and the prd worker's writable corpus URL in $3.
 m_app_env() {
   printf 'MERITUM_DATABASE_PROVIDER=postgres\n'
   if [ "$1-$2" = worker-dev ]; then printf 'MERITUM_LLM_STUB_FIXTURES=%s\n' "$M_LLM_STUB_FIXTURES"; fi
+  if [ "$1-$2" = worker-prd ]; then
+    printf 'MERITUM_CORPUS_PROVIDER=postgres\nMERITUM_CORPUS_DATABASE_URL=%s\n' "$3"
+  fi
 }
 m_host() { if [ "$1" = prd ]; then printf 'meritum.%s' "$M_DOMAIN"; else printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; fi; }
 m_mock_host() { if [ "$2" = prd ]; then printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; else printf 'meritum-%s-%s.%s' "$1" "$2" "$M_DOMAIN"; fi; }
