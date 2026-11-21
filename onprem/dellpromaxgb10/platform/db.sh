@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Database layout of the Meritum platform. Source it after lib.sh, don't run it.
 #
-#   database meritum          app_dev, app_prd, mocks_prd (corpus comes with infra#4)
+#   database meritum          app_dev, app_prd, mocks_prd and the shared corpus
 #   database meritum_dbos_dev DBOS system tables of dev (schema dbos)
 #   database meritum_dbos_prd DBOS system tables of prd
 #
@@ -10,6 +10,8 @@
 # the DBOS tables from `dbos migrate -r` in the worker deploy. Roles of one env
 # have no access to the schema or the DBOS database of the other env.
 # Mocks (prd only) keep their own schema mocks_prd.
+# corpus is shared by both envs: meritum_worker_prd owns it (corpus migrations
+# run from main only, worker#32), the other api and worker roles only read it.
 
 pw_var() { printf '%s_PASSWORD' "$(printf '%s_%s' "$1" "$2" | tr '[:lower:]' '[:upper:]')"; }
 m_app_schema() { printf 'app_%s' "$1"; }
@@ -41,7 +43,7 @@ m_db_url() {
 # variables named by pw_var (setup.sh: ~/meritum/db.env).
 #   $1 ENVS (space separated)   $2 mocks envs (space separated)
 m_db_sql() {
-  local env role schema api worker db
+  local env role schema api worker db reader
   echo "REVOKE ALL ON DATABASE meritum FROM PUBLIC;"
   echo "REVOKE CREATE ON SCHEMA public FROM PUBLIC;"
   for env in $1; do
@@ -69,6 +71,20 @@ ALTER ROLE $api IN DATABASE meritum SET search_path = $schema, public;
 ALTER ROLE $worker IN DATABASE meritum SET search_path = $schema, public;
 SQL
   done
+  # Shared corpus: only the prd worker (deploys from main) owns it and runs its
+  # migrations; every other app role reads. Mocks get nothing.
+  worker=$(m_role worker prd)
+  echo "CREATE SCHEMA IF NOT EXISTS corpus AUTHORIZATION $worker;"
+  echo "ALTER SCHEMA corpus OWNER TO $worker;"
+  for env in $1; do for role in api worker; do
+    [ "$role $env" != "worker prd" ] || continue
+    reader=$(m_role "$role" "$env")
+    cat <<SQL
+GRANT USAGE ON SCHEMA corpus TO $reader;
+GRANT SELECT ON ALL TABLES IN SCHEMA corpus TO $reader;
+ALTER DEFAULT PRIVILEGES FOR ROLE $worker IN SCHEMA corpus GRANT SELECT ON TABLES TO $reader;
+SQL
+  done; done
   # CREATE DATABASE cannot run in a DO block; \gexec runs it only when missing.
   for env in $1; do
     db=$(m_dbos_db "$env"); api=$(m_role api "$env"); worker=$(m_role worker "$env")
