@@ -20,7 +20,7 @@ M_GATEWAY="meritum-gateway"
 # 18080/18081 are TuttiTrip's, 18090 is ExactDocs'.
 M_GATEWAY_BIND="${M_GATEWAY_BIND:-172.17.0.1:18095}"
 
-M_MOCK_PLATFORMS=(x facebook instagram reddit tiktok)
+M_MOCK_PLATFORMS=(x facebook instagram reddit tiktok discord)
 
 m_log() { printf '[meritum] %s\n' "$*" >&2; }
 m_role() { printf 'meritum_%s_%s' "$1" "$2"; }
