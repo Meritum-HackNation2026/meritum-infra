@@ -55,8 +55,10 @@ cf_ingress_ensure() {
   [[ $host =~ $CF_HOST_RE ]] \
     || { m_log "refusing foreign hostname $host"; return 1; }
   old=$(cf_get_config) || return 1
+  # A rule already pointing at the service stays where it is (no rewrite, no reorder).
   new=$(jq --arg h "$host" --arg s "$service" '
-    .ingress = ([{hostname: $h, service: $s}] + [.ingress[] | select(.hostname != $h)])' <<<"$old")
+    if any(.ingress[]; .hostname == $h and .service == $s) then .
+    else .ingress = ([{hostname: $h, service: $s}] + [.ingress[] | select(.hostname != $h)]) end' <<<"$old")
   cf_put_config "$old" "$new"
 }
 
