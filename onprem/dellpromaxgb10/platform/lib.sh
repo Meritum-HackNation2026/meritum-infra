@@ -6,8 +6,8 @@
 #   main     prd  meritum.gburek.app       meritum-web-prd  meritum-api-prd  meritum-worker-prd
 #   develop  dev  meritum-dev.gburek.app   meritum-web-dev  meritum-api-dev  meritum-worker-dev
 #
-# Platform mocks (meritum-mocks): meritum-<platform>.gburek.app (prd) and
-# meritum-<platform>-dev.gburek.app (dev), served by meritum-mocks-<env>.
+# Platform mocks (meritum-mocks, main only): meritum-<platform>.gburek.app,
+# served by meritum-mocks-prd.
 #
 # Everything created here carries the Docker label meritum.managed=true.
 # shellcheck disable=SC2034  # used by the scripts that source this file
