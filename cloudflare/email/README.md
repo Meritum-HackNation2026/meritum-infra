@@ -45,7 +45,9 @@ Temat to tekst `notifications.kind.case_assigned` z `copy/pl.json` („Nowa albo
 | `SIGNING_SECRET`      | sekret Workera  | wspólny z backendem, np. `openssl rand -hex 32`                                          |
 | `MODERATOR_ADDRESSES` | sekret Workera  | adresy moderatorów po przecinku, zweryfikowane w Email Routing                           |
 
-Listy adresów nie ma w `wrangler.toml`, bo adresy moderatorów to dane osobowe, a te nie trafiają do repozytorium. Z tego samego powodu wiązanie nie ma `allowed_destination_addresses`. Bez włączonego Email Sending Cloudflare i tak dostarcza wyłącznie na adresy zweryfikowane w koncie, a Worker odrzuca kodem 400 każdy adres spoza sekretu.
+Listy adresów nie ma w `wrangler.toml`, bo adresy moderatorów to dane osobowe, a te nie trafiają do repozytorium. Z tego samego powodu wiązanie nie ma `allowed_destination_addresses`. Bez włączonego Email Sending Cloudflare i tak dostarcza wyłącznie na adresy zweryfikowane w koncie, a Worker odrzuca kodem 400 każdy adres spoza sekretu. Po włączeniu Email Sending dla domeny Cloudflare przestaje ograniczać odbiorców i jedynym filtrem zostaje ten sekret.
+
+Worker ma publiczny adres `workers.dev` (`workers_dev = true`); każde żądanie bez ważnego podpisu dostaje 401.
 
 ## Weryfikacja adresów w Email Routing (raz na adres)
 

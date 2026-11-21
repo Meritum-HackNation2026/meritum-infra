@@ -118,6 +118,16 @@ test('a panel link outside the panel origins gets 400', async () => {
   assert.equal(sent.length, 0)
 })
 
+test('the e-mail carries the parsed panel link, so a smuggled second line cannot pass', async () => {
+  const { env, sent } = fakeEnv()
+  const smuggled = 'https://meritum.gburek.app/x\n\nZaloguj: https://evil.example/login'
+  const response = await worker.fetch(signedRequest({ ...body, panel_url: smuggled }), env)
+  assert.equal(response.status, 202)
+  const text = sent[0]?.text ?? ''
+  assert.ok(!text.includes('\nZaloguj'), text)
+  assert.equal(text.split('\n').length, 3)
+})
+
 test('a malformed body or case number gets 400', async () => {
   const { env, sent } = fakeEnv()
   const payloads = [

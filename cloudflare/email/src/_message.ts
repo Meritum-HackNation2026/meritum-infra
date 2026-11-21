@@ -24,12 +24,10 @@ function parseJson(body: string): unknown {
   }
 }
 
-function isPanelLink(value: string, env: Env): boolean {
-  if (!URL.canParse(value)) {
-    return false
-  }
-  const url = new URL(value)
-  return url.protocol === 'https:' && list(env.PANEL_ORIGINS).includes(url.origin)
+function panelLink(value: string, env: Env): URL | null {
+  const url = URL.parse(value)
+  const isPanel = url?.protocol === 'https:' && list(env.PANEL_ORIGINS).includes(url.origin)
+  return isPanel ? url : null
 }
 
 function parseNotice(body: string): Notice | null {
@@ -55,11 +53,13 @@ function parseNotice(body: string): Notice | null {
  */
 export function composeMessage(body: string, env: Env): EmailMessageBuilder | null {
   const notice = parseNotice(body)
+  // The parsed href, not the raw value: the URL parser drops tabs and newlines.
+  const link = notice === null ? null : panelLink(notice.panelUrl, env)
   const isValid =
     notice !== null &&
+    link !== null &&
     list(env.MODERATOR_ADDRESSES).includes(notice.to.trim().toLowerCase()) &&
-    CASE_PATTERN.test(notice.caseNumber) &&
-    isPanelLink(notice.panelUrl, env)
+    CASE_PATTERN.test(notice.caseNumber)
   if (!isValid) {
     return null
   }
@@ -68,6 +68,6 @@ export function composeMessage(body: string, env: Env): EmailMessageBuilder | nu
     from: env.FROM_ADDRESS,
     to: notice.to.trim(),
     subject,
-    text: `${subject}\n\n${notice.panelUrl}`,
+    text: `${subject}\n\n${link.href}`,
   }
 }
