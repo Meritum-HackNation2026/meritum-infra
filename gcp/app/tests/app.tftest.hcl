@@ -7,6 +7,7 @@ mock_provider "google" {
     defaults = { number = "123456789" }
   }
   mock_resource "google_service_account" {
+    override_during = plan # known in plan, so tests can compare the account
     defaults = {
       email  = "meritum-postgres@meritum-test.iam.gserviceaccount.com"
       member = "serviceAccount:meritum-postgres@meritum-test.iam.gserviceaccount.com"
@@ -65,7 +66,7 @@ run "runs_as_its_own_accounts_and_pinned_image" {
     condition = (
       one(google_cloud_run_v2_service.api["prd"].template).service_account == "meritum-backend@meritum-test.iam.gserviceaccount.com" &&
       one(google_compute_instance_template.worker["prd"].service_account).email == "meritum-worker@meritum-test.iam.gserviceaccount.com" &&
-      length(google_compute_instance.postgres.service_account) == 1
+      one(google_compute_instance.postgres.service_account).email == "meritum-postgres@meritum-test.iam.gserviceaccount.com"
     )
     error_message = "The API runs as meritum-backend, the worker as meritum-worker, PostgreSQL as its own account (never the default Compute account)."
   }
@@ -140,12 +141,12 @@ run "least_privilege" {
     error_message = "Each service account reads only its own secrets; only the worker calls Vertex AI."
   }
   assert {
-    # The postgres account is created in the same plan, so only its key set is checked above.
     condition = alltrue([for k, m in google_secret_manager_secret_iam_member.access :
       m.member == {
-        api    = "serviceAccount:meritum-backend@meritum-test.iam.gserviceaccount.com"
-        worker = "serviceAccount:meritum-worker@meritum-test.iam.gserviceaccount.com"
-    }[split("/", k)[0]] if !startswith(k, "postgres/")])
+        api      = "serviceAccount:meritum-backend@meritum-test.iam.gserviceaccount.com"
+        worker   = "serviceAccount:meritum-worker@meritum-test.iam.gserviceaccount.com"
+        postgres = "serviceAccount:meritum-postgres@meritum-test.iam.gserviceaccount.com"
+    }[split("/", k)[0]]])
     error_message = "Secrets are granted to the right service account."
   }
   assert {
