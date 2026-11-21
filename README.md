@@ -72,8 +72,8 @@ Nowa maszyna rejestruje się w grupie `runner_group` przy pierwszym starcie. Run
 
 Skrypt pobiera jednorazowy token rejestracji runnera (ważny 1 h) i przekazuje sekrety z `.env` jako `TF_VAR_*`. Maszyny przy starcie instalują Dockera i runnera, rejestrują się raz i działają jako usługa systemd.
 
-Liczba runnerów: `runner_count` w `gcp/gh-actions/terraform.tfvars` (domyślnie 5 w `variables.tf`). Po zmianie `scripts/apply.sh plan` musi pokazać tylko dodanie maszyn o kolejnych numerach; zmniejszenie usuwa maszyny o najwyższych numerach, a ich runnery trzeba potem usunąć z ustawień organizacji. Nowe maszyny rejestrują się świeżym tokenem z `scripts/apply.sh apply`, istniejących to nie dotyka.
+Liczba runnerów: `runner_count`, domyślnie 5 w `gcp/gh-actions/variables.tf`. Wpis `runner_count` w lokalnym `terraform.tfvars` ma pierwszeństwo, więc w kopii sprzed tej zmiany (z `runner_count = 3`) trzeba go usunąć albo poprawić. Po zmianie `scripts/apply.sh plan` musi pokazać tylko dodanie maszyn o kolejnych numerach; zmniejszenie usuwa maszyny o najwyższych numerach, a ich runnery trzeba potem usunąć z ustawień organizacji. Nowe maszyny rejestrują się świeżym tokenem z `scripts/apply.sh apply`, istniejących to nie dotyka.
 
 Dostęp: `ssh -i .ssh/meritum-runner meritum@<ip>` (IP: `terraform -chdir=gcp/gh-actions output runners`). Log instalacji: `/var/log/meritum-runner-setup.log`.
 
-Koszt: ok. 0,13 USD/h za maszynę, czyli ok. 0,67 USD/h za pięć, dopóki działają. Wyłączenie: `scripts/apply.sh destroy` (runnery trzeba potem usunąć z ustawień organizacji).
+Koszt: ok. 0,135 USD/h za maszynę, czyli ok. 0,67 USD/h za pięć, dopóki działają. Wyłączenie: `scripts/apply.sh destroy` (runnery trzeba potem usunąć z ustawień organizacji).
