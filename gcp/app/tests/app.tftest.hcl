@@ -6,17 +6,28 @@ mock_provider "google" {
   mock_data "google_project" {
     defaults = { number = "123456789" }
   }
-  mock_data "google_service_account" {
-    defaults = {
-      email  = "meritum-test@meritum-test.iam.gserviceaccount.com"
-      member = "serviceAccount:meritum-test@meritum-test.iam.gserviceaccount.com"
-    }
-  }
   mock_resource "google_service_account" {
     defaults = {
       email  = "meritum-postgres@meritum-test.iam.gserviceaccount.com"
       member = "serviceAccount:meritum-postgres@meritum-test.iam.gserviceaccount.com"
     }
+  }
+}
+
+# Distinct accounts, so a swapped API and worker account fails the IAM checks.
+override_data {
+  target = data.google_service_account.backend
+  values = {
+    email  = "meritum-backend@meritum-test.iam.gserviceaccount.com"
+    member = "serviceAccount:meritum-backend@meritum-test.iam.gserviceaccount.com"
+  }
+}
+
+override_data {
+  target = data.google_service_account.worker
+  values = {
+    email  = "meritum-worker@meritum-test.iam.gserviceaccount.com"
+    member = "serviceAccount:meritum-worker@meritum-test.iam.gserviceaccount.com"
   }
 }
 
@@ -49,6 +60,12 @@ run "everything_in_europe_central2" {
 
 run "postgres_is_private_and_backed_up" {
   command = plan
+
+  assert {
+    condition = alltrue([for t in google_compute_instance_template.worker :
+    length(one(t.network_interface).access_config) == 0])
+    error_message = "Worker VMs must have no public IP."
+  }
 
   assert {
     condition     = length(one(google_compute_instance.postgres.network_interface).access_config) == 0
@@ -104,6 +121,29 @@ run "least_privilege" {
     )
     error_message = "Each service account reads only its own secrets; only the worker calls Vertex AI."
   }
+  assert {
+    # The postgres account is created in the same plan, so only its key set is checked above.
+    condition = alltrue([for k, m in google_secret_manager_secret_iam_member.access :
+      m.member == {
+        api    = "serviceAccount:meritum-backend@meritum-test.iam.gserviceaccount.com"
+        worker = "serviceAccount:meritum-worker@meritum-test.iam.gserviceaccount.com"
+    }[split("/", k)[0]] if !startswith(k, "postgres/")])
+    error_message = "Secrets are granted to the right service account."
+  }
+  assert {
+    condition = (
+      google_project_iam_member.worker_vertex.member == "serviceAccount:meritum-worker@meritum-test.iam.gserviceaccount.com" &&
+      toset([for m in google_project_iam_member.vm_logs : m.role]) == toset(["roles/logging.logWriter"]) &&
+      toset([for m in google_artifact_registry_repository_iam_member.pull : m.role]) == toset(["roles/artifactregistry.reader"])
+    )
+    error_message = "VMs get only log writing and image pulls; Vertex AI goes to the worker account."
+  }
+  assert {
+    condition = alltrue([for e in one(one(google_cloud_run_v2_service.api["prd"].template).containers).env :
+      length(e.value_source) == 0 || startswith(one(one(e.value_source).secret_key_ref).secret, "meritum-api-prd-")
+    ])
+    error_message = "The API reads only its own secrets."
+  }
 }
 
 run "only_known_environments" {
@@ -112,4 +152,21 @@ run "only_known_environments" {
     environments = ["prod"]
   }
   expect_failures = [var.environments]
+}
+
+# db.sh makes meritum_worker_prd the owner of the shared corpus schema.
+run "prd_is_required" {
+  command = plan
+  variables {
+    environments = ["dev"]
+  }
+  expect_failures = [var.environments]
+}
+
+run "vertex_stays_in_the_eu" {
+  command = plan
+  variables {
+    vertex_location = "us-central1"
+  }
+  expect_failures = [var.vertex_location]
 }

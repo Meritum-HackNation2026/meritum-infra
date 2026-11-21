@@ -1,9 +1,13 @@
 terraform {
+  backend "gcs" {
+    bucket = "agro-prj-sandbox-sd-2332277-meritum-tfstate"
+    prefix = "app"
+  }
   required_version = ">= 1.11" # write-only secret data, ephemeral random_password
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = "~> 6.0"
+      version = "~> 6.50" # secret_data_wo, invoker_iam_disabled
     }
     random = {
       source  = "hashicorp/random"
@@ -34,10 +38,14 @@ data "google_service_account" "worker" {
 }
 
 locals {
-  envs     = toset(var.environments)
-  registry = "${var.region}-docker.pkg.dev"
+  envs          = toset(var.environments)
+  registry_host = "${var.region}-docker.pkg.dev"
   # Deploys (infra#6) push meritum-worker:<env> here; worker VMs pull it on boot.
-  images = "${local.registry}/${var.project_id}/${google_artifact_registry_repository.images.repository_id}"
+  images = "${local.registry_host}/${var.project_id}/${google_artifact_registry_repository.images.repository_id}"
+  vm_service_accounts = {
+    worker   = data.google_service_account.worker.member
+    postgres = google_service_account.postgres.member
+  }
 }
 
 resource "google_project_service" "apis" {
@@ -59,6 +67,22 @@ resource "google_artifact_registry_repository" "images" {
   format        = "DOCKER"
   description   = "Images of the API, the worker and meritum-postgres."
   depends_on    = [google_project_service.apis]
+}
+
+# The VMs write logs and pull images; nothing else on the project.
+resource "google_project_iam_member" "vm_logs" {
+  for_each = local.vm_service_accounts
+  project  = var.project_id
+  role     = "roles/logging.logWriter"
+  member   = each.value
+}
+
+resource "google_artifact_registry_repository_iam_member" "pull" {
+  for_each   = local.vm_service_accounts
+  repository = google_artifact_registry_repository.images.name
+  location   = var.region
+  role       = "roles/artifactregistry.reader"
+  member     = each.value
 }
 
 # --- network ----------------------------------------------------------------------

@@ -7,7 +7,7 @@ output "postgres_ip" {
   value = google_compute_address.postgres.address
 }
 
-output "registry" {
+output "images" {
   description = "Artifact Registry path for meritum-postgres, meritum-api and meritum-worker images."
   value       = local.images
 }

@@ -6,21 +6,6 @@ resource "google_project_iam_member" "worker_vertex" {
   member  = data.google_service_account.worker.member
 }
 
-resource "google_project_iam_member" "vm_logs" {
-  for_each = { worker = data.google_service_account.worker.member, postgres = google_service_account.postgres.member }
-  project  = var.project_id
-  role     = "roles/logging.logWriter"
-  member   = each.value
-}
-
-resource "google_artifact_registry_repository_iam_member" "pull" {
-  for_each   = { worker = data.google_service_account.worker.member, postgres = google_service_account.postgres.member }
-  repository = google_artifact_registry_repository.images.name
-  location   = var.region
-  role       = "roles/artifactregistry.reader"
-  member     = each.value
-}
-
 resource "google_compute_instance_template" "worker" {
   for_each     = local.envs
   name_prefix  = "meritum-worker-${each.key}-"
@@ -51,7 +36,7 @@ resource "google_compute_instance_template" "worker" {
     google-logging-enabled  = "true"
     meritum-env             = each.key
     meritum-image           = "${local.images}/meritum-worker:${each.key}"
-    meritum-registry        = local.registry
+    meritum-registry        = local.registry_host
     meritum-vertex-location = var.vertex_location
     meritum-vm-lib          = file("${path.module}/vm-lib.sh")
     startup-script          = file("${path.module}/worker-startup.sh")

@@ -85,13 +85,14 @@ resource "google_compute_instance" "postgres" {
     google-logging-enabled = "true"
     meritum-envs           = join(" ", var.environments)
     meritum-postgres-image = var.postgres_image
-    meritum-registry       = local.registry
+    meritum-registry       = local.registry_host
     meritum-vm-lib         = file("${path.module}/vm-lib.sh")
     # The same layout as the team server: roles, app_<env> schemas, DBOS databases.
     meritum-platform-lib = file("${path.module}/../../onprem/dellpromaxgb10/platform/lib.sh")
     meritum-db           = file("${path.module}/../../onprem/dellpromaxgb10/platform/db.sh")
+    # In metadata, not metadata_startup_script: a changed script must not replace the VM.
+    startup-script = file("${path.module}/postgres-startup.sh")
   }
-  metadata_startup_script = file("${path.module}/postgres-startup.sh")
 
   # Database passwords must exist before the first boot.
   depends_on = [google_secret_manager_secret_version.postgres, google_secret_manager_secret_version.url, google_secret_manager_secret_iam_member.access]

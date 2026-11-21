@@ -4,10 +4,10 @@ name: Terraform
 # module in gcp/, plus shellcheck of its scripts. `terraform apply` stays manual (scripts/apply.sh, README).
 on:
   pull_request:
-    paths: ["gcp/**", ".github/workflows/terraform.yml"]
+    paths: ["gcp/**", "onprem/dellpromaxgb10/platform/*.sh", ".github/workflows/terraform.yml"]
   push:
     branches: [main]
-    paths: ["gcp/**", ".github/workflows/terraform.yml"]
+    paths: ["gcp/**", "onprem/dellpromaxgb10/platform/*.sh", ".github/workflows/terraform.yml"]
 
 permissions:
   contents: read

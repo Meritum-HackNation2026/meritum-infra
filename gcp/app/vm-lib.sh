@@ -2,6 +2,11 @@
 # Helpers of the VM boot scripts (postgres-startup.sh, worker-startup.sh). Source it,
 # don't run it. The VMs run Container-Optimized OS: curl and docker, no gcloud or jq.
 
+# The startup-script service runs without HOME; lib.sh and docker-credential-gcr need
+# one, and the root home on COS is read-only.
+export HOME=/var/lib/meritum
+mkdir -p "$HOME"
+
 md_url=http://metadata.google.internal/computeMetadata/v1
 md_get() { curl -fsS --retry 5 -H 'Metadata-Flavor: Google' "$md_url/$1"; }
 # Instance metadata attribute $1 (set by Terraform in gcp/app).
@@ -19,7 +24,5 @@ secret() {
 
 # docker pull from Artifact Registry as the VM's service account.
 docker_login() {
-  export HOME=/var/lib/meritum # COS: the root home is read-only, credentials go to $HOME/.docker
-  mkdir -p "$HOME"
   docker-credential-gcr configure-docker --registries="$(md meritum-registry)" >/dev/null
 }

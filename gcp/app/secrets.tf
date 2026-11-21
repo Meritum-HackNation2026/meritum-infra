@@ -5,15 +5,17 @@ locals {
   # MERITUM_DATABASE_URL (database meritum, search_path app_<env>) and MERITUM_DBOS_URL
   # (database meritum_dbos_<env>) of every role, as m_db_url in db.sh builds them.
   urls = merge(
-    { for k, r in local.roles : "${k}-database-url" => { role = k, suffix = "meritum?options=-csearch_path%3Dapp_${r.env},public" } },
-    { for k, r in local.roles : "${k}-dbos-url" => { role = k, suffix = "meritum_dbos_${r.env}" } },
+    { for k, r in local.roles : "${k}-database-url" => { role = k, app = r.app, suffix = "meritum?options=-csearch_path%3Dapp_${r.env},public" } },
+    { for k, r in local.roles : "${k}-dbos-url" => { role = k, app = r.app, suffix = "meritum_dbos_${r.env}" } },
   )
   secrets = setunion(["postgres-password"], keys(local.urls))
 
-  # Who reads which secret: "<service account>/<secret>".
+  # Who reads which secret: each app its own URLs; the PostgreSQL VM the superuser
+  # password and the database URLs, which carry the role passwords.
   secret_readers = merge(
-    { for s in keys(local.urls) : "${split("-", s)[0]}/${s}" => split("-", s)[0] },
-    { for s in setunion(["postgres-password"], [for k in keys(local.roles) : "${k}-database-url"]) : "postgres/${s}" => "postgres" },
+    { for s, u in local.urls : "${u.app}/${s}" => { reader = u.app, secret = s } },
+    { for s in setunion(["postgres-password"], [for k in keys(local.roles) : "${k}-database-url"]) :
+    "postgres/${s}" => { reader = "postgres", secret = s } },
   )
   members = {
     api      = data.google_service_account.backend.member
@@ -60,7 +62,7 @@ resource "google_secret_manager_secret_version" "url" {
 
 resource "google_secret_manager_secret_iam_member" "access" {
   for_each  = local.secret_readers
-  secret_id = google_secret_manager_secret.db[split("/", each.key)[1]].id
+  secret_id = google_secret_manager_secret.db[each.value.secret].id
   role      = "roles/secretmanager.secretAccessor"
-  member    = local.members[each.value]
+  member    = local.members[each.value.reader]
 }

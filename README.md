@@ -101,7 +101,7 @@ Koszt: ok. 0,135 USD/h za maszynę, czyli ok. 0,67 USD/h za pięć, dopóki dzia
 
 ## Stan Terraform na GCP
 
-Stan modułów z `gcp/` leży w prywatnym buckecie `agro-prj-sandbox-sd-2332277-meritum-tfstate` (`europe-central2`, wersjonowanie obiektów, publiczny dostęp zablokowany), każdy moduł pod własnym prefiksem: `gh-actions`, `storage`, `state`, `workload-identity`. Bucket zakłada moduł `gcp/state/` i trzyma w nim także własny stan. Backend GCS blokuje stan na czas `plan` i `apply`, więc dwie osoby nie nadpiszą go sobie nawzajem. Stan `gh-actions` zawiera wrażliwe wartości (hash hasła admina, klucz SSH, token rejestracji runnera), a czyta go każdy z dostępem do odczytu obiektów w projekcie.
+Stan modułów z `gcp/` leży w prywatnym buckecie `agro-prj-sandbox-sd-2332277-meritum-tfstate` (`europe-central2`, wersjonowanie obiektów, publiczny dostęp zablokowany), każdy moduł pod własnym prefiksem: `app`, `gh-actions`, `storage`, `state`, `workload-identity`. Bucket zakłada moduł `gcp/state/` i trzyma w nim także własny stan. Backend GCS blokuje stan na czas `plan` i `apply`, więc dwie osoby nie nadpiszą go sobie nawzajem. Stan `gh-actions` zawiera wrażliwe wartości (hash hasła admina, klucz SSH, token rejestracji runnera), a czyta go każdy z dostępem do odczytu obiektów w projekcie.
 
 Druga osoba potrzebuje tylko dostępu do projektu: `gcloud auth application-default login`, potem w czystym klonie `terraform -chdir=gcp/<moduł> init` i `plan`. Lokalnych plików `terraform.tfstate` nie ma i nie trzeba ich przekazywać.
 
@@ -170,18 +170,18 @@ Wybraliśmy certyfikat serwera zamiast tokenu OIDC z GitHub Actions. Token OIDC 
 
 ## API, worker i PostgreSQL w GCP (europe-central2)
 
-`gcp/app/` opisuje docelowe środowisko demo (ADR-14). **Do czasu migracji (wdrożenie przez CI/CD w infra#6) demo działa na serwerze zespołu (meritum.gburek.app).** Środowiska: zmienna `environments`, domyślnie `["prd"]`; `["dev", "prd"]` dodaje drugie API, drugą grupę workerów oraz `app_dev` i `meritum_dbos_dev`.
+`gcp/app/` opisuje docelowe środowisko demo (ADR-14). **Do czasu migracji (wdrożenie przez CI/CD w infra#6) demo działa na serwerze zespołu (meritum.gburek.app).** Środowiska: zmienna `environments`, domyślnie `["prd"]` (`prd` jest obowiązkowe); `["dev", "prd"]` dodaje drugie API, drugą grupę workerów oraz `app_dev` i `meritum_dbos_dev`.
 
 | Element | Szczegóły |
 | --- | --- |
 | API | Cloud Run `meritum-api-<env>` w europe-central2, konto `meritum-backend` (z `gcp/storage/`), skalowanie od 0 do `api_max_instances` (domyślnie 3). Do bazy przez Direct VPC egress, reszta ruchu wychodzi bezpośrednio. Do pierwszego wdrożenia działa obraz zastępczy `cloudrun/container/hello`; obraz ustawia deploy (infra#6), Terraform go nie nadpisuje |
 | Worker | grupa maszyn `meritum-worker-<env>` (Container-Optimized OS, `e2-medium`) w strefach europe-central2, konto `meritum-worker`, autoskalowanie na CPU od 1 do `worker_max_replicas` (domyślnie 3). Przy starcie maszyna pobiera `meritum-worker:<env>` z Artifact Registry, robi `dbos migrate` i uruchamia kontener. Bez publicznego IP, ruch do internetu przez Cloud NAT |
-| PostgreSQL | maszyna `meritum-postgres` (COS, `e2-medium`, bez publicznego IP) z kontenerem z obrazu `meritum-postgres` z infra#7 (`postgres_image`, przypięty tag). Cloud SQL odpada, bo nie przyjmie polskiego słownika (ADR-04). Dane na osobnym dysku `meritum-pgdata`. Przy każdym starcie `postgres-startup.sh` stosuje ten sam układ co serwer zespołu (`onprem/dellpromaxgb10/platform/db.sh`): baza `meritum` ze schematami `app_<env>`, bazy `meritum_dbos_<env>`, role `meritum_api_<env>` i `meritum_worker_<env>` (`corpus` dochodzi w infra#4). Port 5432 otwarty tylko dla podsieci aplikacji |
-| Kopie zapasowe | codzienna migawka dysku `meritum-pgdata` o 02:00 UTC, przechowywana 7 dni (`backup_retention_days`) w europe-central2; migawki zostają po usunięciu dysku |
-| Sekrety | Secret Manager, replika tylko w europe-central2: `meritum-postgres-password` oraz `meritum-<api\|worker>-<env>-<database-url\|dbos-url>`. Hasła generuje Terraform jako wartości ulotne i zapisuje je polem tylko do zapisu, więc nie ma ich w stanie ani w planie. Nowe hasła: zwiększ `db_password_version`, `apply`, potem restart maszyny `meritum-postgres` (ustawia hasła ról) i workerów oraz nowa rewizja API |
+| PostgreSQL | maszyna `meritum-postgres` (COS, `e2-medium`, bez publicznego IP) z kontenerem z obrazu `meritum-postgres` z infra#7 (`postgres_image`, przypięty tag). Cloud SQL odpada, bo nie przyjmie polskiego słownika (ADR-04). Dane na osobnym dysku `meritum-pgdata`. Przy każdym starcie `postgres-startup.sh` stosuje ten sam układ co serwer zespołu (`onprem/dellpromaxgb10/platform/db.sh`): baza `meritum` ze schematami `app_<env>`, bazy `meritum_dbos_<env>`, role `meritum_api_<env>` i `meritum_worker_<env>` oraz wspólny schemat `corpus`, którego właścicielem jest `meritum_worker_prd` (dlatego `environments` musi zawierać `prd`). Port 5432 otwarty tylko dla podsieci aplikacji |
+| Kopie zapasowe | codzienna migawka dysku `meritum-pgdata` o 02:00 UTC, przechowywana 7 dni (`backup_retention_days`) w europe-central2; migawki zostają po usunięciu dysku. Migawka działającej bazy jest spójna jak po nagłym wyłączeniu: PostgreSQL odtwarza ją z WAL przy starcie. Bez archiwizacji WAL można stracić zmiany z najwyżej doby |
+| Sekrety | Secret Manager, replika tylko w europe-central2: `meritum-postgres-password` oraz `meritum-<api\|worker>-<env>-<database-url\|dbos-url>`. Hasła generuje Terraform jako wartości ulotne i zapisuje je polem tylko do zapisu, więc nie ma ich w stanie ani w planie. Nowe hasła: zwiększ `db_password_version`, `apply`, potem restart maszyny `meritum-postgres` (ustawia hasła ról i administratora) i workerów oraz nowa rewizja API |
 | Konta serwisowe | API czyta tylko swoje dwa sekrety; worker swoje dwa, `roles/aiplatform.user` (Vertex AI) i odczyt obrazów; `meritum-postgres` hasło administratora, adresy baz ról i odczyt obrazów. Maszyny piszą logi (`roles/logging.logWriter`) |
-| Vertex AI | worker dostaje `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` (`vertex_location`, domyślnie `europe-west4`; zmień na region UE wybranego modelu) i `GOOGLE_GENAI_USE_VERTEXAI=true` |
-| Obrazy | Artifact Registry `europe-central2-docker.pkg.dev/<projekt>/meritum` (output `registry`): `meritum-postgres:<tag>`, `meritum-worker:<env>`, obraz API |
+| Vertex AI | tylko region UE (walidacja zmiennej); worker dostaje `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` (`vertex_location`, domyślnie `europe-west4`; zmień na region UE wybranego modelu) i `GOOGLE_GENAI_USE_VERTEXAI=true` |
+| Obrazy | Artifact Registry `europe-central2-docker.pkg.dev/<projekt>/meritum` (output `images`): `meritum-postgres:<tag>`, `meritum-worker:<env>`, obraz API |
 | Budżet i limity | budżet miesięczny `monthly_budget` (domyślnie 100 w walucie konta rozliczeniowego) z alertami przy 50, 90 i 100 %. Budżet tylko ostrzega; twarde limity to `api_max_instances` i `worker_max_replicas`, a nadmiar zapytań czeka w kolejce DBOS albo dostaje HTTP 429 (ADR-18) |
 
 ### Koszt utrzymania
@@ -212,7 +212,7 @@ Ograniczenie: adres `run.app` zostaje publiczny (bez load balancera nie da się 
 
 ### Uruchomienie
 
-Najpierw `gcp/storage/` (konta serwisowe `meritum-backend` i `meritum-worker`). Potrzebne API projektu `cloudresourcemanager.googleapis.com` (resztę włącza moduł) i uprawnienie do budżetów na koncie rozliczeniowym. `terraform apply` tylko ręcznie:
+Najpierw `gcp/storage/` (konta serwisowe `meritum-backend` i `meritum-worker`). Potrzebne API projektu `cloudresourcemanager.googleapis.com` i `serviceusage.googleapis.com` (resztę włącza moduł) i uprawnienie do budżetów na koncie rozliczeniowym. Stan leży w buckecie stanu pod prefiksem `app` (sekcja „Stan Terraform na GCP”). `terraform apply` tylko ręcznie:
 
 ```bash
 cp gcp/app/terraform.tfvars.example gcp/app/terraform.tfvars   # project_id, billing_account, postgres_image
@@ -231,4 +231,4 @@ docker buildx imagetools create \
 
 Dostęp do maszyn tylko przez IAP: `gcloud compute ssh meritum-postgres --zone europe-central2-a --tunnel-through-iap`. Log startu: `sudo journalctl -u google-startup-scripts`. Wyłączenie kosztów: `terraform -chdir=gcp/app destroy` (migawki bazy zostają, usuwa się je ręcznie).
 
-CI (`.github/workflows/terraform.yml`) sprawdza `gcp/app` tak jak pozostałe moduły (`fmt`, `validate`, `terraform test` na atrapie dostawcy) i dodatkowo `shellcheck` jego skryptów.
+CI (`.github/workflows/terraform.yml`) sprawdza `gcp/app` tak jak pozostałe moduły (`fmt`, `validate`, `terraform test` na atrapie dostawcy) i dodatkowo `shellcheck` jego skryptów. Workflow rusza też po zmianie `onprem/dellpromaxgb10/platform/*.sh`, bo maszyna bazy dostaje `lib.sh` i `db.sh` w metadanych.

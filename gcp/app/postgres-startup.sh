@@ -56,7 +56,14 @@ for i in $(seq 60); do
   sleep 1
 done
 
-# Roles (passwords from Secret Manager on every boot), app_<env> schemas, DBOS databases.
-m_db_sql "$envs" "" | docker exec -i -e PGOPTIONS="-c client_min_messages=warning" "$M_POSTGRES" \
-  psql -q -v ON_ERROR_STOP=1 -U meritum -d meritum >/dev/null
+# Roles (passwords from Secret Manager on every boot, the superuser's too, so a new
+# db_password_version applies after a restart), app_<env> schemas, corpus, DBOS databases.
+# The SQL holds passwords: the server must not log failing statements and psql's
+# errors are masked before they reach the boot log (Cloud Logging).
+[[ $POSTGRES_PASSWORD =~ ^[A-Za-z0-9]+$ ]] || { m_log "postgres-password must match [A-Za-z0-9]+"; exit 1; }
+{
+  echo "ALTER ROLE meritum PASSWORD '$POSTGRES_PASSWORD';"
+  m_db_sql "$envs" ""
+} | docker exec -i -e PGOPTIONS="-c client_min_messages=warning -c log_min_error_statement=panic" "$M_POSTGRES" \
+  psql -q -v ON_ERROR_STOP=1 -U meritum -d meritum 2>&1 >/dev/null | sed -E "s/PASSWORD '[^']*'/PASSWORD '***'/g" >&2
 m_log "database layout applied for: $envs"

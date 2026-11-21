@@ -19,8 +19,9 @@ variable "environments" {
   default     = ["prd"]
   description = "Environments with their own API, worker, app_<env> schema and meritum_dbos_<env> database (layout of onprem/dellpromaxgb10/platform/db.sh)."
   validation {
-    condition     = length(var.environments) > 0 && alltrue([for e in var.environments : contains(["dev", "prd"], e)])
-    error_message = "environments may contain only dev and prd."
+    # prd is required: db.sh makes meritum_worker_prd the owner of the shared corpus schema.
+    condition     = contains(var.environments, "prd") && alltrue([for e in var.environments : contains(["dev", "prd"], e)])
+    error_message = "environments must contain prd and may contain only dev and prd."
   }
 }
 
@@ -77,6 +78,10 @@ variable "vertex_location" {
   type        = string
   default     = "europe-west4"
   description = "EU region of Vertex AI where the chosen model is available (ADR-14), passed to the worker as GOOGLE_CLOUD_LOCATION."
+  validation {
+    condition     = startswith(var.vertex_location, "europe-") || var.vertex_location == "eu"
+    error_message = "vertex_location must be an EU region (europe-*) or the eu multi-region."
+  }
 }
 
 variable "billing_account" {
