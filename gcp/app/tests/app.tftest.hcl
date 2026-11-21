@@ -58,6 +58,23 @@ run "everything_in_europe_central2" {
   }
 }
 
+run "runs_as_its_own_accounts_and_pinned_image" {
+  command = plan
+
+  assert {
+    condition = (
+      one(google_cloud_run_v2_service.api["prd"].template).service_account == "meritum-backend@meritum-test.iam.gserviceaccount.com" &&
+      one(google_compute_instance_template.worker["prd"].service_account).email == "meritum-worker@meritum-test.iam.gserviceaccount.com" &&
+      length(google_compute_instance.postgres.service_account) == 1
+    )
+    error_message = "The API runs as meritum-backend, the worker as meritum-worker, PostgreSQL as its own account (never the default Compute account)."
+  }
+  assert {
+    condition     = google_compute_instance.postgres.metadata["meritum-postgres-image"] == var.postgres_image
+    error_message = "PostgreSQL starts from the pinned meritum-postgres image (infra#7)."
+  }
+}
+
 run "postgres_is_private_and_backed_up" {
   command = plan
 
@@ -80,6 +97,7 @@ run "postgres_is_private_and_backed_up" {
   }
   assert {
     condition = (
+      one(one(one(google_compute_resource_policy.pgdata_snapshots.snapshot_schedule_policy).schedule).daily_schedule).days_in_cycle == 1 &&
       one(one(google_compute_resource_policy.pgdata_snapshots.snapshot_schedule_policy).retention_policy).max_retention_days == 7 &&
       google_compute_disk_resource_policy_attachment.pgdata.disk == google_compute_disk.pgdata.name
     )
@@ -166,7 +184,7 @@ run "prd_is_required" {
 run "vertex_stays_in_the_eu" {
   command = plan
   variables {
-    vertex_location = "us-central1"
+    vertex_location = "europe-west2" # London: Europe, not the EU
   }
   expect_failures = [var.vertex_location]
 }

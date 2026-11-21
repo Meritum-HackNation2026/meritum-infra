@@ -25,7 +25,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
     }
     containers {
-      # Placeholder until the first deploy (infra#6) sets the meritum-api image.
+      # Placeholder until the first deploy (infra#14) sets the meritum-api image.
       image = "us-docker.pkg.dev/cloudrun/container/hello"
       ports {
         container_port = 8000

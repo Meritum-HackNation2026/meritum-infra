@@ -40,7 +40,7 @@ data "google_service_account" "worker" {
 locals {
   envs          = toset(var.environments)
   registry_host = "${var.region}-docker.pkg.dev"
-  # Deploys (infra#6) push meritum-worker:<env> here; worker VMs pull it on boot.
+  # Deploys (infra#14) push meritum-worker:<env> here; worker VMs pull it on boot.
   images = "${local.registry_host}/${var.project_id}/${google_artifact_registry_repository.images.repository_id}"
   vm_service_accounts = {
     worker   = data.google_service_account.worker.member

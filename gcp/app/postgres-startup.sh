@@ -25,6 +25,8 @@ mountpoint -q "$data" || mount -o discard,defaults "$disk" "$data"
 envs=$(md meritum-envs)
 image=$(md meritum-postgres-image)
 POSTGRES_PASSWORD=$(secret postgres-password)
+# It goes into SQL unescaped below, like the role passwords in db.sh.
+[[ $POSTGRES_PASSWORD =~ ^[A-Za-z0-9]+$ ]] || { m_log "postgres-password must match [A-Za-z0-9]+"; exit 1; }
 export POSTGRES_PASSWORD
 # db.sh reads role passwords from <APP>_<ENV>_PASSWORD; they sit in the role's
 # database URL, postgresql://<role>:<password>@<host>:5432/meritum?...
@@ -60,7 +62,6 @@ done
 # db_password_version applies after a restart), app_<env> schemas, corpus, DBOS databases.
 # The SQL holds passwords: the server must not log failing statements and psql's
 # errors are masked before they reach the boot log (Cloud Logging).
-[[ $POSTGRES_PASSWORD =~ ^[A-Za-z0-9]+$ ]] || { m_log "postgres-password must match [A-Za-z0-9]+"; exit 1; }
 {
   echo "ALTER ROLE meritum PASSWORD '$POSTGRES_PASSWORD';"
   m_db_sql "$envs" ""

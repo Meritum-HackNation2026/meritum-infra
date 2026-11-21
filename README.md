@@ -170,17 +170,17 @@ Wybraliśmy certyfikat serwera zamiast tokenu OIDC z GitHub Actions. Token OIDC 
 
 ## API, worker i PostgreSQL w GCP (europe-central2)
 
-`gcp/app/` opisuje docelowe środowisko demo (ADR-14). **Do czasu migracji (wdrożenie przez CI/CD w infra#6) demo działa na serwerze zespołu (meritum.gburek.app).** Środowiska: zmienna `environments`, domyślnie `["prd"]` (`prd` jest obowiązkowe); `["dev", "prd"]` dodaje drugie API, drugą grupę workerów oraz `app_dev` i `meritum_dbos_dev`.
+`gcp/app/` opisuje docelowe środowisko demo (ADR-14), przygotowane na czas po hackathonie. **Nie jest wdrożone: na hackathon API, worker i PostgreSQL zostają na serwerze zespołu w Polsce (meritum.gburek.app).** Migrację zrobi wdrożenie przez CI/CD (infra#14). Środowiska: zmienna `environments`, domyślnie `["prd"]` (`prd` jest obowiązkowe); `["dev", "prd"]` dodaje drugie API, drugą grupę workerów oraz `app_dev` i `meritum_dbos_dev`.
 
 | Element | Szczegóły |
 | --- | --- |
-| API | Cloud Run `meritum-api-<env>` w europe-central2, konto `meritum-backend` (z `gcp/storage/`), skalowanie od 0 do `api_max_instances` (domyślnie 3). Do bazy przez Direct VPC egress, reszta ruchu wychodzi bezpośrednio. Do pierwszego wdrożenia działa obraz zastępczy `cloudrun/container/hello`; obraz ustawia deploy (infra#6), Terraform go nie nadpisuje |
+| API | Cloud Run `meritum-api-<env>` w europe-central2, konto `meritum-backend` (z `gcp/storage/`), skalowanie od 0 do `api_max_instances` (domyślnie 3). Do bazy przez Direct VPC egress, reszta ruchu wychodzi bezpośrednio. Do pierwszego wdrożenia działa obraz zastępczy `cloudrun/container/hello`; obraz ustawia deploy (infra#14), Terraform go nie nadpisuje |
 | Worker | grupa maszyn `meritum-worker-<env>` (Container-Optimized OS, `e2-medium`) w strefach europe-central2, konto `meritum-worker`, autoskalowanie na CPU od 1 do `worker_max_replicas` (domyślnie 3). Przy starcie maszyna pobiera `meritum-worker:<env>` z Artifact Registry, robi `dbos migrate` i uruchamia kontener. Bez publicznego IP, ruch do internetu przez Cloud NAT |
 | PostgreSQL | maszyna `meritum-postgres` (COS, `e2-medium`, bez publicznego IP) z kontenerem z obrazu `meritum-postgres` z infra#7 (`postgres_image`, przypięty tag). Cloud SQL odpada, bo nie przyjmie polskiego słownika (ADR-04). Dane na osobnym dysku `meritum-pgdata`. Przy każdym starcie `postgres-startup.sh` stosuje ten sam układ co serwer zespołu (`onprem/dellpromaxgb10/platform/db.sh`): baza `meritum` ze schematami `app_<env>`, bazy `meritum_dbos_<env>`, role `meritum_api_<env>` i `meritum_worker_<env>` oraz wspólny schemat `corpus`, którego właścicielem jest `meritum_worker_prd` (dlatego `environments` musi zawierać `prd`). Port 5432 otwarty tylko dla podsieci aplikacji |
 | Kopie zapasowe | codzienna migawka dysku `meritum-pgdata` o 02:00 UTC, przechowywana 7 dni (`backup_retention_days`) w europe-central2; migawki zostają po usunięciu dysku. Migawka działającej bazy jest spójna jak po nagłym wyłączeniu: PostgreSQL odtwarza ją z WAL przy starcie. Bez archiwizacji WAL można stracić zmiany z najwyżej doby |
 | Sekrety | Secret Manager, replika tylko w europe-central2: `meritum-postgres-password` oraz `meritum-<api\|worker>-<env>-<database-url\|dbos-url>`. Hasła generuje Terraform jako wartości ulotne i zapisuje je polem tylko do zapisu, więc nie ma ich w stanie ani w planie. Nowe hasła: zwiększ `db_password_version`, `apply`, potem restart maszyny `meritum-postgres` (ustawia hasła ról i administratora) i workerów oraz nowa rewizja API |
 | Konta serwisowe | API czyta tylko swoje dwa sekrety; worker swoje dwa, `roles/aiplatform.user` (Vertex AI) i odczyt obrazów; `meritum-postgres` hasło administratora, adresy baz ról i odczyt obrazów. Maszyny piszą logi (`roles/logging.logWriter`) |
-| Vertex AI | tylko region UE (walidacja zmiennej); worker dostaje `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` (`vertex_location`, domyślnie `europe-west4`; zmień na region UE wybranego modelu) i `GOOGLE_GENAI_USE_VERTEXAI=true` |
+| Vertex AI | tylko region GCP w UE albo multi-region `eu` (lista w walidacji zmiennej; bez Londynu i Zurychu); worker dostaje `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` (`vertex_location`, domyślnie `europe-west4`; zmień na region UE wybranego modelu) i `GOOGLE_GENAI_USE_VERTEXAI=true` |
 | Obrazy | Artifact Registry `europe-central2-docker.pkg.dev/<projekt>/meritum` (output `images`): `meritum-postgres:<tag>`, `meritum-worker:<env>`, obraz API |
 | Budżet i limity | budżet miesięczny `monthly_budget` (domyślnie 100 w walucie konta rozliczeniowego) z alertami przy 50, 90 i 100 %. Budżet tylko ostrzega; twarde limity to `api_max_instances` i `worker_max_replicas`, a nadmiar zapytań czeka w kolejce DBOS albo dostaje HTTP 429 (ADR-18) |
 
@@ -201,14 +201,14 @@ Razem ok. 75 USD miesięcznie (ok. 0,10 USD/h), przy pełnym skalowaniu workeró
 
 ### Cloudflare przed API
 
-Cloudflare stoi przed API tak jak dziś przed serwerem zespołu: kończy TLS, chroni przed DDoS i ma reguły limitów. Konfiguracja w strefie gburek.app (ręcznie albo w infra#6):
+Cloudflare stoi przed API tak jak dziś przed serwerem zespołu: kończy TLS, chroni przed DDoS i ma reguły limitów. Konfiguracja w strefie gburek.app (ręcznie albo w infra#14):
 
 1. Rekord `CNAME` nazwy API (np. `meritum-api.gburek.app`) na host z outputu `api_urls` (`meritum-api-prd-….run.app`), z proxy Cloudflare.
 2. Origin Rule dla tej nazwy: nadpisanie nagłówka `Host` na host `run.app` (Cloud Run kieruje ruch po nazwie hosta).
 3. SSL/TLS w trybie Full (strict): Cloud Run ma ważny certyfikat dla `run.app`.
 4. Reguła Rate limiting dla ścieżek `/api/v1/` po adresie IP, np. 20 żądań na 10 s; własny licznik API (ADR-18) zostaje drugą warstwą.
 
-Ograniczenie: adres `run.app` zostaje publiczny (bez load balancera nie da się wpuścić tylko Cloudflare), więc limity w samym API muszą działać także bez Cloudflare. Rejestr podmiotów przetwarzających (design-system, `copy/privacy.json`) ma już wiersze Cloudflare i GCP europe-central2; przy migracji (infra#6) cel wiersza Cloudflare zmienia się z tunelu do serwera zespołu na proxy przed API w GCP.
+Ograniczenie: adres `run.app` zostaje publiczny (bez load balancera nie da się wpuścić tylko Cloudflare), więc limity w samym API muszą działać także bez Cloudflare. Rejestr podmiotów przetwarzających (design-system, `copy/privacy.json`) ma już wiersze Cloudflare i GCP europe-central2; przy migracji (infra#14) cel wiersza Cloudflare zmienia się z tunelu do serwera zespołu na proxy przed API w GCP.
 
 ### Uruchomienie
 

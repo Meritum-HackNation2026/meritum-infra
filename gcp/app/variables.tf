@@ -79,8 +79,12 @@ variable "vertex_location" {
   default     = "europe-west4"
   description = "EU region of Vertex AI where the chosen model is available (ADR-14), passed to the worker as GOOGLE_CLOUD_LOCATION."
   validation {
-    condition     = startswith(var.vertex_location, "europe-") || var.vertex_location == "eu"
-    error_message = "vertex_location must be an EU region (europe-*) or the eu multi-region."
+    # GCP regions in EU member states; europe-west2 (London) and europe-west6 (Zurich) are not.
+    condition = contains([
+      "eu", "europe-central2", "europe-north1", "europe-north2", "europe-southwest1", "europe-west1",
+      "europe-west3", "europe-west4", "europe-west8", "europe-west9", "europe-west10", "europe-west12",
+    ], var.vertex_location)
+    error_message = "vertex_location must be a GCP region in the EU or the eu multi-region."
   }
 }
 
