@@ -52,7 +52,7 @@ docker network inspect "$M_NETWORK" >/dev/null 2>&1 \
 
 # Image tagged by the hash of its inputs; a change rebuilds it and replaces the
 # container on the same data volume, after a full dump to $M_STATE/backups.
-pg_hash=$(cat "$here"/postgres/Dockerfile "$here"/postgres/polish.stop | sha256sum | cut -c1-12)
+pg_hash=$(cat "$here"/postgres/{Dockerfile,polish.stop,extensions.sql,polish-fts.sql} | sha256sum | cut -c1-12)
 M_POSTGRES_IMAGE="meritum-postgres:$pg_hash"
 docker image inspect "$M_POSTGRES_IMAGE" >/dev/null 2>&1 \
   || docker build -q -t "$M_POSTGRES_IMAGE" --label meritum.managed=true "$here/postgres" >/dev/null
@@ -85,8 +85,7 @@ done
 {
   echo "REVOKE ALL ON DATABASE meritum FROM PUBLIC;"
   echo "REVOKE CREATE ON SCHEMA public FROM PUBLIC;"
-  echo "CREATE EXTENSION IF NOT EXISTS vector SCHEMA public;"
-  echo "CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public;"
+  cat "$here/postgres/extensions.sql"
   cat "$here/postgres/polish-fts.sql"
   for app in "${APPS[@]}"; do for env in "${ENVS[@]}"; do
     has_env "$app" "$env" || continue

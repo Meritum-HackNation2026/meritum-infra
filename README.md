@@ -27,6 +27,15 @@ jobs:
 
 Porty 18080 i 18081 należą do TuttiTrip, 18090 do ExactDocs. Skrypt dotyka tylko zasobów z prefiksem `meritum` i hostów `meritum(-*).gburek.app`.
 
+### Obraz PostgreSQL `meritum-postgres`
+
+`platform/postgres/Dockerfile`: `pgvector/pgvector:0.8.7-pg18-trixie` z pakietem `hunspell-pl`. Przy pierwszym starcie (pusty wolumen) skrypty init tworzą w bazie `POSTGRES_DB` rozszerzenia `vector` i `pg_trgm` oraz konfigurację `public.polish` (słownik Hunspell z polskimi stop words, potem `simple`), więc `to_tsvector('public.polish', 'Tuska')` i `'Tusk'` dają ten sam leksem.
+
+- Rejestr: `ghcr.io/meritum-hacknation2026/meritum-postgres:<pgvector>-<pg>-<commit>`, np. `0.8.7-pg18-1a2b3c4`, dla `linux/amd64` i `linux/arm64`. Publikuje go workflow `.github/workflows/postgres-image.yml` po zmianie obrazu na `main` (albo ręcznie). Tagu `latest` nie ma: docker compose i GCP przypinają konkretny tag. Pakiet jest prywatny jak repo, więc przed `docker pull` trzeba `docker login ghcr.io` (token z `read:packages`).
+- Serwer zespołu buduje ten sam `Dockerfile` lokalnie w `setup.sh` (tag z hasza plików), bez logowania do rejestru.
+- Test lokalny, poza CI pull requestów: `onprem/dellpromaxgb10/platform/postgres/test.sh` buduje obraz (albo bierze podany jako argument), startuje go i sprawdza `public.polish` oraz rozszerzenia.
+- Licencja słownika: `hunspell-pl` (Debian, źródło `libreoffice-dictionaries`) ma dla `dictionaries/pl_PL/*` licencję do wyboru „GPL or LGPL or MPL or Apache-2.0 or CC-SA-1.0” (autor Marek Futrega, `/usr/share/doc/hunspell-pl/copyright` w obrazie). Korzystamy z niej na warunkach Apache-2.0.
+
 ## Runnery GitHub Actions na GCP
 
 `gcp/gh-actions/` stawia 3 maszyny e2-standard-4 (Ubuntu 24.04, 100 GB, europe-central2-a) i rejestruje je jako self-hosted runnery organizacji `Meritum-HackNation2026` z etykietami `self-hosted, Linux, X64, gcp, meritum`.
