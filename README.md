@@ -19,7 +19,7 @@ jobs:
 | Element | Szczegóły |
 | --- | --- |
 | Sieć Dockera | `meritum` |
-| PostgreSQL | kontener `meritum-postgres` (pgvector, PG 18), baza `meritum`, wolumen `meritum-postgres-data` |
+| PostgreSQL | kontener `meritum-postgres` z obrazu `platform/postgres/` (PG 18, pgvector, pg_trgm, polski słownik Hunspell), baza `meritum`, wolumen `meritum-postgres-data`. Wyszukiwanie pełnotekstowe po polsku: konfiguracja `public.polish`, np. `to_tsvector('public.polish', tekst) @@ websearch_to_tsquery('public.polish', pytanie)`. Zmiana obrazu podmienia kontener na tym samym wolumenie, po zrzucie `pg_dumpall` do `~/meritum/backups/` |
 | Role i schematy | `meritum_<app>_<env>` → `<app>_<env>` dla `api`, `worker` i `mocks` w `dev` i `prd`; każda rola ma tylko swój schemat (plus odczyt `public`, gdzie są pgvector i pg_trgm) |
 | Pliki env | `~meritum-runner/meritum/envs/{api,worker,mocks}-{dev,prd}.env` (600), czytane przez deploye aplikacji; hasła w `~/meritum/db.env`, wspólne sekrety aplikacji opcjonalnie w `~/meritum/app.env` |
 | Gateway | `meritum-gateway` (nginx) na `172.17.0.1:18095`: `meritum.gburek.app` → `meritum-web-prd`, `meritum-dev.gburek.app` → `meritum-web-dev`, `meritum-<platforma>.gburek.app` → `meritum-mocks-prd`, `meritum-<platforma>-dev.gburek.app` → `meritum-mocks-dev` (platformy: x, facebook, instagram, reddit, tiktok) |
