@@ -1,7 +1,7 @@
 name: Terraform
 
 # fmt, validate and plan-only tests (mock provider, no credentials) of every
-# module in gcp/. `terraform apply` stays manual (scripts/apply.sh, README).
+# module in gcp/, plus shellcheck of its scripts. `terraform apply` stays manual (scripts/apply.sh, README).
 on:
   pull_request:
     paths: ["gcp/**", ".github/workflows/terraform.yml"]
@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [gcp/gh-actions, gcp/state, gcp/storage, gcp/workload-identity]
+        module: [gcp/app, gcp/gh-actions, gcp/state, gcp/storage, gcp/workload-identity]
     defaults:
       run:
         working-directory: ${{ matrix.module }}
@@ -33,3 +33,9 @@ jobs:
       - run: terraform init -backend=false -input=false
       - run: terraform validate
       - run: if [ -d tests ]; then terraform test; fi
+      - name: shellcheck
+        working-directory: .
+        run: |
+          shopt -s nullglob
+          scripts=(${{ matrix.module }}/*.sh)
+          if [ ${#scripts[@]} -gt 0 ]; then shellcheck -x "${scripts[@]}"; fi
