@@ -131,7 +131,7 @@ Backend i worker działają na dellpromaxgb10, poza GCP, a do bucketu i Vertex A
 
 ### Skąd serwer bierze tożsamość: certyfikat X.509
 
-Wybraliśmy certyfikat serwera zamiast tokenu OIDC z GitHub Actions. Token OIDC można pobrać tylko w trakcie joba deployu, a kontener backendu działa dniami i odnawia token GCP co godzinę. Musiałby dostawać świeży token OIDC z workflow uruchamianego według harmonogramu, a ten w GitHub Actions bywa opóźniony o kwadrans i więcej. Certyfikat leży na serwerze i biblioteka czyta go przy każdym odnowieniu.
+Wybraliśmy certyfikat serwera zamiast tokenu OIDC z GitHub Actions. Token OIDC można pobrać tylko w trakcie joba deployu, a kontener backendu działa dniami i odnawia token GCP co godzinę. Musiałby dostawać świeży token OIDC z workflow uruchamianego według harmonogramu, a ten w GitHub Actions bywa opóźniony o kwadrans i więcej. Certyfikat leży na dysku serwera, a biblioteka sama wymienia go na token GCP.
 
 | Element | Szczegóły |
 | --- | --- |
@@ -159,7 +159,7 @@ Wybraliśmy certyfikat serwera zamiast tokenu OIDC z GitHub Actions. Token OIDC 
 
 ### Rotacja
 
-- Certyfikaty usług: `setup.sh` wystawia nowy 30 dni przed wygaśnięciem, z nowym kluczem prywatnym, podpisany tym samym CA, bez zmian w Terraform. Workflow Platform uruchamia się sam raz w miesiącu, więc certyfikat nie wygaśnie bez odnowienia. Po wymianie trzeba zrestartować kontenery backendu i workera (najprościej ich deployem), bo biblioteka może trzymać stary certyfikat w pamięci.
+- Certyfikaty usług: `setup.sh` wystawia nowy 30 dni przed wygaśnięciem, z nowym kluczem prywatnym, podpisany tym samym CA, bez zmian w Terraform. Workflow Platform uruchamia się sam raz w miesiącu, więc plik na dysku nie wygaśnie bez odnowienia. Kontenery backendu i workera trzeba zrestartować (najprościej ich deployem) w ciągu 30 dni od wymiany, bo biblioteka może trzymać stary certyfikat w pamięci, a ten po 30 dniach wygasa.
 - CA (raz na 5 lat albo po wycieku): `rm -rf ~meritum-runner/meritum/gcp` na serwerze, workflow Platform, nowy `trust_anchor_pem` w `terraform.tfvars` i `apply`, potem restart kontenerów backendu i workera. Między krokiem 2 a `apply` kontenery nie mają dostępu.
 
 ### Cofnięcie dostępu
