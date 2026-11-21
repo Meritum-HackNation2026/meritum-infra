@@ -107,8 +107,7 @@ for env in "${ENVS[@]}"; do
     printf 'MERITUM_DBOS_URL=%s\n' "$(dbos_url api "$env")"
     printf 'MERITUM_DBOS_SCHEMA=dbos\n'
     printf 'FORWARDED_ALLOW_IPS=%s\n' "$gateway_subnet"
-    printf 'MERITUM_FILES_VOLUME=%s\n' "$(m_files_volume "$env")"
-    printf 'MERITUM_FILES_DIR=%s\n' "$M_FILES_DIR"
+    m_files_env "$env"
     extra
   } >"$M_STATE/envs/api-$env.env"
   {
@@ -117,8 +116,7 @@ for env in "${ENVS[@]}"; do
     printf 'MERITUM_DBOS_URL=%s\n' "$(dbos_url worker "$env")"
     printf 'MERITUM_DBOS_SCHEMA=dbos\n'
     printf 'MERITUM_API_ROLE=%s\n' "$(m_role api "$env")"
-    printf 'MERITUM_FILES_VOLUME=%s\n' "$(m_files_volume "$env")"
-    printf 'MERITUM_FILES_DIR=%s\n' "$M_FILES_DIR"
+    m_files_env "$env"
     extra
   } >"$M_STATE/envs/worker-$env.env"
   has_env mocks "$env" && {
