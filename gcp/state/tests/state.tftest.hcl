@@ -25,3 +25,17 @@ run "state_bucket" {
     error_message = "Uniform bucket-level access must be on."
   }
 }
+
+# Backend blocks cannot read variables, so every module names this bucket literally.
+run "name_matches_backends" {
+  command = plan
+
+  variables {
+    project_id = "agro-prj-sandbox-sd-2332277"
+  }
+
+  assert {
+    condition     = google_storage_bucket.state.name == "agro-prj-sandbox-sd-2332277-meritum-tfstate"
+    error_message = "Bucket name must match the bucket in every backend \"gcs\" block."
+  }
+}
