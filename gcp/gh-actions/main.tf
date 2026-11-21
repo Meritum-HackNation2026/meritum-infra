@@ -58,6 +58,7 @@ resource "google_compute_instance" "gh_runner" {
     registration_token  = var.gh_registration_token
     runner_name         = each.key
     runner_labels       = var.runner_labels
+    runner_group        = var.runner_group
   })
 
   # The registration token is single-use and expires after an hour; a fresh one on the next

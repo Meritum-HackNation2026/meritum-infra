@@ -4,5 +4,5 @@ project_id   = "agro-prj-sandbox-sd-2332277"
 region       = "europe-central2"
 zone         = "europe-central2-a"
 gh_org       = "Meritum-HackNation2026"
-runner_count = 3
+runner_count = 5
 machine_type = "e2-standard-4"
