@@ -134,7 +134,7 @@ for env in "${ENVS[@]}"; do
     printf 'MERITUM_ENV=%s\n' "$env"
     printf 'MERITUM_DATABASE_URL=%s\n' "$(app_url worker "$env")"
     printf 'MERITUM_DATABASE_PROVIDER=postgres\n'
-    # dev runs the LLM stub; without fixtures it fails every check (worker#68).
+    # dev runs the LLM stub; without fixtures (a path inside the worker image) it fails every check (worker#68).
     if [ "$env" = dev ]; then printf 'MERITUM_LLM_STUB_FIXTURES=/app/features/fixtures/llm_stub_answer.json\n'; fi
     printf 'MERITUM_DBOS_URL=%s\n' "$(dbos_url worker "$env")"
     printf 'MERITUM_DBOS_SCHEMA=dbos\n'
