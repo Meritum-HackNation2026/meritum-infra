@@ -119,6 +119,8 @@ for env in "${ENVS[@]}"; do
   {
     printf 'MERITUM_ENV=%s\n' "$env"
     printf 'MERITUM_DATABASE_URL=%s\n' "$(app_url api "$env")"
+    # PostgreSQL repositories of meritum-core; the default (memory) loses records on redeploy.
+    printf 'MERITUM_DATABASE_PROVIDER=postgres\n'
     # The API enqueues into the worker's DBOS tables with its own role
     # (access granted by `dbos migrate -r` in the worker deploy).
     printf 'MERITUM_DBOS_URL=%s\n' "$(dbos_url api "$env")"
@@ -131,6 +133,9 @@ for env in "${ENVS[@]}"; do
   {
     printf 'MERITUM_ENV=%s\n' "$env"
     printf 'MERITUM_DATABASE_URL=%s\n' "$(app_url worker "$env")"
+    printf 'MERITUM_DATABASE_PROVIDER=postgres\n'
+    # dev runs the LLM stub; without fixtures it fails every check (worker#68).
+    if [ "$env" = dev ]; then printf 'MERITUM_LLM_STUB_FIXTURES=/app/features/fixtures/llm_stub_answer.json\n'; fi
     printf 'MERITUM_DBOS_URL=%s\n' "$(dbos_url worker "$env")"
     printf 'MERITUM_DBOS_SCHEMA=dbos\n'
     printf 'MERITUM_API_ROLE=%s\n' "$(m_role api "$env")"
