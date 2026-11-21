@@ -1,0 +1,37 @@
+name: Email Worker
+
+# Checks of the moderator e-mail Worker (cloudflare/email/): Biome, types, unit tests on a
+# fake send_email binding (no real mail) and dead code, on the GCP runners. One run per
+# commit (push only; a PR shows the run of its head commit). Deploy is manual: the
+# repo's Cloudflare token has no Workers permission (cloudflare/email/README.md).
+on:
+  push:
+    branches: ["**"]
+    paths: ["cloudflare/email/**", ".github/workflows/email-worker.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: [self-hosted, meritum]
+    timeout-minutes: 10
+    concurrency:
+      group: email-worker-${{ github.ref }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+    defaults:
+      run:
+        working-directory: cloudflare/email
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      # pnpm from npm (version from packageManager); the store stays on the runner.
+      - run: npm install --global "$(node -p "require('./package.json').packageManager")"
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      - run: pnpm biome ci --reporter=github --error-on-warnings .
+      - run: pnpm typecheck # tsc strict
+      - run: pnpm test # unit tests and tests/architecture: JSDoc @feature, constants, 250 lines
+      - run: pnpm knip # dead code and unused dependencies

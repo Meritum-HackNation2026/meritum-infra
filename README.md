@@ -51,6 +51,10 @@ Przejście ze starego układu (schematy `api_<env>` i `worker_<env>`, tabele DBO
 - Test lokalny, poza CI pull requestów: `onprem/dellpromaxgb10/platform/postgres/test.sh` buduje obraz (albo bierze podany jako argument), startuje go i sprawdza `public.polish` oraz rozszerzenia.
 - Licencja słownika: `hunspell-pl` (Debian, źródło `libreoffice-dictionaries`) ma dla `dictionaries/pl_PL/*` licencję do wyboru „GPL or LGPL or MPL or Apache-2.0 or CC-SA-1.0” (autor Marek Futrega, `/usr/share/doc/hunspell-pl/copyright` w obrazie). Korzystamy z niej na warunkach Apache-2.0.
 
+## Worker e-mail do moderatorów (Cloudflare)
+
+`cloudflare/email/` to Worker `meritum-email` z wiązaniem `send_email`: backend woła go podpisanym żądaniem, a on wysyła moderatorowi e-mail o sprawie na adres zweryfikowany w Email Routing. Kontrakt żądania, weryfikacja adresów, sekrety i ręczne wdrożenie: [README](cloudflare/email/README.md). Workflow `.github/workflows/email-worker.yml` tylko sprawdza kod (Biome, tsc, `node --test`, knip).
+
 ## Runnery GitHub Actions na GCP
 
 `gcp/gh-actions/` stawia 5 maszyn e2-standard-4 (`meritum-gh-runner-1..5`; Ubuntu 24.04, 100 GB, europe-central2-a) i rejestruje je jako self-hosted runnery organizacji `Meritum-HackNation2026` z etykietami `self-hosted, Linux, X64, gcp, meritum`. Runnery należą do grupy runnerów organizacji `meritum-gcp` (dostępna dla wszystkich repozytoriów, zmienna `runner_group`).
