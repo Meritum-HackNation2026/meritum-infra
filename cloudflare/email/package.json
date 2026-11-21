@@ -1,0 +1,23 @@
+{
+  "name": "meritum-email-worker",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.21.0",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "check": "biome check .",
+    "typecheck": "tsc",
+    "test": "node --test \"tests/**/*.test.ts\"",
+    "knip": "knip",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.8",
+    "@types/node": "^26.6.6",
+    "knip": "^6.47.0",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.165.0"
+  }
+}

@@ -1,0 +1,17 @@
+# Moderator e-mail Worker (infra#10). Deploy and secrets: README.md in this folder.
+name = "meritum-email"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+# Cloudflare Email Routing delivers only to destination addresses verified in the account.
+# The moderator list itself is the MODERATOR_ADDRESSES secret, not this file: the addresses
+# are personal data and stay out of the repository.
+[[send_email]]
+name = "SEND_EMAIL"
+
+[vars]
+FROM_ADDRESS = "meritum@gburek.app"
+PANEL_ORIGINS = "https://meritum.gburek.app,https://meritum-dev.gburek.app"
+
+# Secrets (wrangler secret put): SIGNING_SECRET, MODERATOR_ADDRESSES.

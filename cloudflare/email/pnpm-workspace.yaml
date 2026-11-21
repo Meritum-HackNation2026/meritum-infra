@@ -1,0 +1,4 @@
+allowBuilds:
+  # The native binaries come from their platform packages; the postinstall checks are not needed.
+  "esbuild": false
+  "workerd": false
