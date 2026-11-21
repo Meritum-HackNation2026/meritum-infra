@@ -98,12 +98,14 @@ done
 
 # --- GCP: workload identity of the api and worker (gcp/workload-identity/) ------------
 gcp_env() { :; }
+gcp_pii() { :; }
 if [ -z "${MERITUM_GCP_PROJECT_ID:-}" ] || [ -z "${MERITUM_GCP_PROJECT_NUMBER:-}" ]; then
   m_log "WARNING: MERITUM_GCP_PROJECT_ID or MERITUM_GCP_PROJECT_NUMBER unset, no GCP credentials"
   echo "::warning title=GCP::GCP_PROJECT_ID or GCP_PROJECT_NUMBER is not set; api and worker get no GCP credentials"
 else
   m_wif_issue "$M_STATE/gcp" "$MERITUM_GCP_PROJECT_ID" "$MERITUM_GCP_PROJECT_NUMBER"
   gcp_env() { m_wif_env "$M_STATE/gcp" "$1" "$MERITUM_GCP_PROJECT_ID"; }
+  gcp_pii() { m_pii_env "$MERITUM_GCP_PROJECT_ID"; }
   m_log "GCP credentials ready; trust anchor $M_STATE/gcp/ca/ca.pem, $(openssl x509 -noout -fingerprint -sha256 -in "$M_STATE/gcp/ca/ca.pem")"
 fi
 
@@ -129,6 +131,7 @@ for env in "${ENVS[@]}"; do
     printf 'FORWARDED_ALLOW_IPS=%s\n' "$gateway_subnet"
     m_files_env "$env"
     gcp_env api
+    gcp_pii
     extra
   } >"$M_STATE/envs/api-$env.env"
   {
@@ -140,6 +143,7 @@ for env in "${ENVS[@]}"; do
     printf 'MERITUM_API_ROLE=%s\n' "$(m_role api "$env")"
     m_files_env "$env"
     gcp_env worker
+    gcp_pii
     extra
   } >"$M_STATE/envs/worker-$env.env"
   has_env mocks "$env" && {

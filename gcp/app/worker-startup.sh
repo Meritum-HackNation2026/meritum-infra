@@ -27,6 +27,9 @@ MERITUM_API_ROLE=meritum_api_$env
 GOOGLE_CLOUD_PROJECT=$project
 GOOGLE_CLOUD_LOCATION=$vertex_location
 GOOGLE_GENAI_USE_VERTEXAI=true
+MERITUM_PII_GATE=sdp
+MERITUM_PII_PROJECT=$project
+MERITUM_PII_LOCATION=europe-central2
 ENV
 
 docker_login

@@ -41,6 +41,18 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "MERITUM_DBOS_SCHEMA"
         value = "dbos"
       }
+      env {
+        name  = "MERITUM_PII_GATE"
+        value = "sdp"
+      }
+      env {
+        name  = "MERITUM_PII_PROJECT"
+        value = var.project_id
+      }
+      env {
+        name  = "MERITUM_PII_LOCATION"
+        value = var.region
+      }
       dynamic "env" {
         for_each = { MERITUM_DATABASE_URL = "database-url", MERITUM_DBOS_URL = "dbos-url" }
         content {

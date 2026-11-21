@@ -31,4 +31,11 @@ grep -qF "corpus_url() { m_db_url \"\$(m_role worker prd)\" \"\$(pw worker prd)\
   || fail "setup.sh: corpus URL must use the prd worker role and corpus search path"
 grep -qF "m_app_env worker \"\$env\" \"\$(corpus_url)\"" "$here/setup.sh" \
   || fail "setup.sh: worker env files must receive the corpus URL"
+grep -qF 'gcp_pii' "$here/setup.sh" \
+  || fail "setup.sh: api and worker env files must call gcp_pii when GCP credentials exist"
+grep -qF 'm_pii_env()' "$here/lib.sh" || fail "lib.sh: missing m_pii_env"
+pii=$(m_pii_env meritum-example)
+grep -qx 'MERITUM_PII_GATE=sdp' <<<"$pii" || fail "m_pii_env: no MERITUM_PII_GATE=sdp"
+grep -qx 'MERITUM_PII_PROJECT=meritum-example' <<<"$pii" || fail "m_pii_env: project from argument"
+grep -qx 'MERITUM_PII_LOCATION=europe-central2' <<<"$pii" || fail "m_pii_env: location europe-central2"
 echo "app env: ok"

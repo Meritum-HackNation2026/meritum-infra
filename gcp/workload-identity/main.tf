@@ -55,3 +55,22 @@ resource "google_service_account_iam_member" "workload_identity_user" {
   role               = "roles/iam.workloadIdentityUser"
   member             = "principal://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.onprem.workload_identity_pool_id}/subject/${each.key}"
 }
+
+# SDP PII gate (core#90): on-prem containers impersonate these accounts via WIF.
+locals {
+  pii_service_accounts = toset(["meritum-backend", "meritum-worker"])
+}
+
+resource "google_project_iam_member" "dlp_user" {
+  for_each = local.pii_service_accounts
+  project  = var.project_id
+  role     = "roles/dlp.user"
+  member   = "serviceAccount:${each.key}@${var.project_id}.iam.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "service_usage" {
+  for_each = local.pii_service_accounts
+  project  = var.project_id
+  role     = "roles/serviceusage.serviceUsageConsumer"
+  member   = "serviceAccount:${each.key}@${var.project_id}.iam.gserviceaccount.com"
+}

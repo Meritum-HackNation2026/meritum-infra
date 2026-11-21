@@ -165,6 +165,28 @@ run "least_privilege" {
   }
 }
 
+run "pii_masking_env_on_api_and_worker" {
+  command = plan
+
+  assert {
+    condition = alltrue([for env_name, svc in google_cloud_run_v2_service.api :
+      contains([for e in one(one(svc.template).containers).env : e.name], "MERITUM_PII_GATE") &&
+      contains([for e in one(one(svc.template).containers).env : e.value if e.name == "MERITUM_PII_GATE"], "sdp") &&
+      contains([for e in one(one(svc.template).containers).env : e.value if e.name == "MERITUM_PII_PROJECT"], var.project_id) &&
+      contains([for e in one(one(svc.template).containers).env : e.value if e.name == "MERITUM_PII_LOCATION"], var.region)
+    ])
+    error_message = "Each API service gets MERITUM_PII_* for the SDP gate (core#90)."
+  }
+  assert {
+    condition = alltrue([for t in google_compute_instance_template.worker :
+      strcontains(t.metadata["startup-script"], "MERITUM_PII_GATE=sdp") &&
+      strcontains(t.metadata["startup-script"], "MERITUM_PII_PROJECT") &&
+      strcontains(t.metadata["startup-script"], "MERITUM_PII_LOCATION=europe-central2")
+    ])
+    error_message = "Worker VMs write MERITUM_PII_* into the runtime env file."
+  }
+}
+
 run "only_known_environments" {
   command = plan
   variables {

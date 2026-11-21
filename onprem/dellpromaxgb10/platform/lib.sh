@@ -42,5 +42,10 @@ m_app_env() {
     printf 'MERITUM_CORPUS_PROVIDER=postgres\nMERITUM_CORPUS_DATABASE_URL=%s\n' "$3"
   fi
 }
+# Sensitive Data Protection (core#90): only with GCP credentials from setup.sh (wif.sh).
+M_PII_LOCATION="${M_PII_LOCATION:-europe-central2}"
+m_pii_env() {
+  printf 'MERITUM_PII_GATE=sdp\nMERITUM_PII_PROJECT=%s\nMERITUM_PII_LOCATION=%s\n' "$1" "$M_PII_LOCATION"
+}
 m_host() { if [ "$1" = prd ]; then printf 'meritum.%s' "$M_DOMAIN"; else printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; fi; }
 m_mock_host() { if [ "$2" = prd ]; then printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; else printf 'meritum-%s-%s.%s' "$1" "$2" "$M_DOMAIN"; fi; }
