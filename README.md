@@ -2,6 +2,16 @@
 
 Infrastruktura projektu Meritum (HackNation 2026).
 
+## Runner on-prem na dellpromaxgb10
+
+`onprem/dellpromaxgb10/` opisuje runner `dellpromaxgb10` (ARM64, etykiety `dellpromaxgb10, gpu, backend`) na naszym serwerze Dell Pro Max GB10. Na nim wdrażamy backend, workery DBOS i PostgreSQL z pgvector. Host dzieli z runnerem innego projektu. Instalacja: `onprem/dellpromaxgb10/setup-runner.sh`, szczegóły w [README](onprem/dellpromaxgb10/README.md).
+
+```yaml
+jobs:
+  deploy:
+    runs-on: [self-hosted, dellpromaxgb10]
+```
+
 ## Runnery GitHub Actions na GCP
 
 `gcp/gh-actions/` stawia 3 maszyny e2-standard-4 (Ubuntu 24.04, 100 GB, europe-central2-a) i rejestruje je jako self-hosted runnery organizacji `Meritum-HackNation2026` z etykietami `self-hosted, Linux, X64, gcp, meritum`.
