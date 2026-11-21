@@ -60,3 +60,27 @@ run "rejects_non_pem_trust_anchor" {
   }
   expect_failures = [var.trust_anchor_pem]
 }
+
+run "dlp_and_service_usage_for_api_and_worker" {
+  command = plan
+
+  assert {
+    condition     = toset(keys(google_project_iam_member.dlp_user)) == toset(["meritum-backend", "meritum-worker"])
+    error_message = "Only meritum-backend and meritum-worker need roles/dlp.user for the PII adapter."
+  }
+  assert {
+    condition = alltrue([for _, m in google_project_iam_member.dlp_user :
+      m.role == "roles/dlp.user" &&
+      endswith(m.member, "@meritum-test.iam.gserviceaccount.com")
+    ])
+    error_message = "Each DLP binding targets the project's service account."
+  }
+  assert {
+    condition     = toset(keys(google_project_iam_member.service_usage)) == toset(["meritum-backend", "meritum-worker"])
+    error_message = "SDP sends x-goog-user-project; API and worker need serviceusage.serviceUsageConsumer."
+  }
+  assert {
+    condition     = alltrue([for _, m in google_project_iam_member.service_usage : m.role == "roles/serviceusage.serviceUsageConsumer"])
+    error_message = "Service Usage consumer role for quota project checks."
+  }
+}
