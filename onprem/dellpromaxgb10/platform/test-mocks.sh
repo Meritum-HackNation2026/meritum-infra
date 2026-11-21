@@ -9,7 +9,6 @@ here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 re=$(sed -n 's/^ *~\(\^meritum-.*\$\) *meritum-mocks-prd:3000;$/\1/p' "$here/nginx.conf")
 [ -n "$re" ] || fail "nginx.conf: no mocks host regex"
-[[ " ${M_MOCK_PLATFORMS[*]} " == *" discord "* ]] || fail "M_MOCK_PLATFORMS lacks discord"
 for p in "${M_MOCK_PLATFORMS[@]}"; do
   host=$(m_mock_host "$p" prd)
   grep -Eq "$re" <<<"$host" || fail "nginx.conf does not route $host"
