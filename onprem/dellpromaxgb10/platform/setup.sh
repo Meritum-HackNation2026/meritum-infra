@@ -112,6 +112,8 @@ gateway_subnet=$(docker network inspect "$M_NETWORK" -f '{{range .IPAM.Config}}{
 pw() { local var; var=$(pw_var "$1" "$2"); printf '%s' "${!var}"; }
 # MERITUM_DATABASE_URL: database meritum, search_path app_<env>, public.
 app_url() { m_db_url "$(m_role "$1" "$2")" "$(pw "$1" "$2")" meritum "$(m_app_schema "$2")"; }
+# MERITUM_CORPUS_DATABASE_URL: only the prd worker writes to schema corpus.
+corpus_url() { m_db_url "$(m_role worker prd)" "$(pw worker prd)" meritum corpus; }
 # MERITUM_DBOS_URL: the env's DBOS database; tables in schema dbos (DBOS default).
 dbos_url() { m_db_url "$(m_role "$1" "$2")" "$(pw "$1" "$2")" "$(m_dbos_db "$2")"; }
 extra() { if [ -f "$M_STATE/app.env" ]; then grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$M_STATE/app.env" || true; fi; }
@@ -132,7 +134,7 @@ for env in "${ENVS[@]}"; do
   {
     printf 'MERITUM_ENV=%s\n' "$env"
     printf 'MERITUM_DATABASE_URL=%s\n' "$(app_url worker "$env")"
-    m_app_env worker "$env"
+    m_app_env worker "$env" "$(corpus_url)"
     printf 'MERITUM_DBOS_URL=%s\n' "$(dbos_url worker "$env")"
     printf 'MERITUM_DBOS_SCHEMA=dbos\n'
     printf 'MERITUM_API_ROLE=%s\n' "$(m_role api "$env")"
