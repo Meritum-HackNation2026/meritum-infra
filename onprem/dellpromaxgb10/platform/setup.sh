@@ -10,13 +10,16 @@
 #             corpus shared by both envs (written by meritum_worker_prd only),
 #             and one DBOS database per env, meritum_dbos_<env> (db.sh)
 #   files     volume meritum-files-<env>, shared by the api and worker of that env
+#   gcp       workload identity certificates and external_account credential files of
+#             the api and worker, ~/meritum/gcp (wif.sh, gcp/workload-identity/)
 #   env files ~/meritum/envs/<app>-<env>.env (mode 600), read by the app deploys
 #   gateway   meritum-gateway (nginx) on 172.17.0.1:18095, reachable by cloudflared only
 #   routes    meritum.gburek.app -> meritum-web-prd, meritum-dev.gburek.app -> meritum-web-dev,
 #             meritum-<platform>.gburek.app -> meritum-mocks-prd (nginx.conf)
 #             (Cloudflare tunnel ingress + DNS; skipped with a warning without a token)
 #
-# Env: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_TUNNEL_ID, CLOUDFLARE_ZONE_ID.
+# Env: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_TUNNEL_ID, CLOUDFLARE_ZONE_ID,
+# MERITUM_GCP_PROJECT_ID, MERITUM_GCP_PROJECT_NUMBER.
 # Host files (never committed): ~/meritum/db.env (generated passwords) and the
 # optional ~/meritum/app.env (shared app secrets, appended to every env file).
 set -euo pipefail
@@ -25,6 +28,8 @@ here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 . "$here/lib.sh"
 # shellcheck source=onprem/dellpromaxgb10/platform/db.sh
 . "$here/db.sh"
+# shellcheck source=onprem/dellpromaxgb10/platform/wif.sh
+. "$here/wif.sh"
 
 APPS=(api worker mocks)
 ENVS=(dev prd)
@@ -91,6 +96,17 @@ for env in "${ENVS[@]}"; do
     || docker volume create --label meritum.managed=true "$(m_files_volume "$env")" >/dev/null
 done
 
+# --- GCP: workload identity of the api and worker (gcp/workload-identity/) ------------
+gcp_env() { :; }
+if [ -z "${MERITUM_GCP_PROJECT_ID:-}" ] || [ -z "${MERITUM_GCP_PROJECT_NUMBER:-}" ]; then
+  m_log "WARNING: MERITUM_GCP_PROJECT_ID or MERITUM_GCP_PROJECT_NUMBER unset, no GCP credentials"
+  echo "::warning title=GCP::GCP_PROJECT_ID or GCP_PROJECT_NUMBER is not set; api and worker get no GCP credentials"
+else
+  m_wif_issue "$M_STATE/gcp" "$MERITUM_GCP_PROJECT_ID" "$MERITUM_GCP_PROJECT_NUMBER"
+  gcp_env() { m_wif_env "$M_STATE/gcp" "$1" "$MERITUM_GCP_PROJECT_ID"; }
+  m_log "GCP credentials ready; trust anchor $M_STATE/gcp/ca/ca.pem, $(openssl x509 -noout -fingerprint -sha256 -in "$M_STATE/gcp/ca/ca.pem")"
+fi
+
 # --- env files for the app deploys -------------------------------------------------
 gateway_subnet=$(docker network inspect "$M_NETWORK" -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' | awk '{print $1}')
 pw() { local var; var=$(pw_var "$1" "$2"); printf '%s' "${!var}"; }
@@ -109,6 +125,7 @@ for env in "${ENVS[@]}"; do
     printf 'MERITUM_DBOS_SCHEMA=dbos\n'
     printf 'FORWARDED_ALLOW_IPS=%s\n' "$gateway_subnet"
     m_files_env "$env"
+    gcp_env api
     extra
   } >"$M_STATE/envs/api-$env.env"
   {
@@ -118,6 +135,7 @@ for env in "${ENVS[@]}"; do
     printf 'MERITUM_DBOS_SCHEMA=dbos\n'
     printf 'MERITUM_API_ROLE=%s\n' "$(m_role api "$env")"
     m_files_env "$env"
+    gcp_env worker
     extra
   } >"$M_STATE/envs/worker-$env.env"
   has_env mocks "$env" && {
