@@ -7,6 +7,7 @@
 #             database `meritum` with schemas app_dev and app_prd (owned by
 #             meritum_worker_<env>, read/write for meritum_api_<env>), mocks_prd
 #             (meritum_mocks_prd; mocks deploy from main only, so no dev env),
+#             corpus shared by both envs (written by meritum_worker_prd only),
 #             and one DBOS database per env, meritum_dbos_<env> (db.sh)
 #   files     volume meritum-files-<env>, shared by the api and worker of that env
 #   env files ~/meritum/envs/<app>-<env>.env (mode 600), read by the app deploys
@@ -82,7 +83,7 @@ mocks_envs=(); for env in "${ENVS[@]}"; do if has_env mocks "$env"; then mocks_e
   cat "$here/postgres/polish-fts.sql"
   m_db_sql "${ENVS[*]}" "${mocks_envs[*]}"
 } | docker exec -i -e PGOPTIONS="-c client_min_messages=warning" "$M_POSTGRES" psql -q -v ON_ERROR_STOP=1 -U meritum -d meritum >/dev/null
-m_log "roles, app schemas, DBOS databases and Polish FTS ready: ${ENVS[*]} (mocks: prd only)"
+m_log "roles, app schemas, corpus, DBOS databases and Polish FTS ready: ${ENVS[*]} (mocks: prd only)"
 
 # --- uploaded files: one volume per env, shared by api and worker --------------------
 for env in "${ENVS[@]}"; do

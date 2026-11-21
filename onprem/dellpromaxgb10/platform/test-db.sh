@@ -64,6 +64,18 @@ check "api dev connects to meritum_dbos_dev" "$(as api dev meritum_dbos_dev "SEL
 denied "api dev cannot connect to meritum_dbos_prd" "$(as api dev meritum_dbos_prd "SELECT 1")"
 denied "worker dev cannot connect to meritum_dbos_prd" "$(as worker dev meritum_dbos_prd "SELECT 1")"
 
+# Shared corpus (infra#13): only worker prd writes, the other app roles read.
+check "worker prd owns corpus" "$(q "SELECT nspowner::regrole FROM pg_namespace WHERE nspname = 'corpus'")" meritum_worker_prd
+check "worker prd creates and fills a corpus table" \
+  "$(as worker prd app "CREATE TABLE corpus.doc (id serial PRIMARY KEY, v text); INSERT INTO corpus.doc (v) VALUES ('c'); SELECT v FROM corpus.doc")" c
+for env in dev prd; do for role in api worker; do
+  [ "$role $env" != "worker prd" ] || continue
+  check "$role $env reads corpus" "$(as "$role" "$env" app "SELECT v FROM corpus.doc")" c
+  denied "$role $env cannot write corpus" "$(as "$role" "$env" app "INSERT INTO corpus.doc (v) VALUES ('x')")"
+  denied "$role $env has no DDL in corpus" "$(as "$role" "$env" app "CREATE TABLE corpus.u (id int)")"
+done; done
+denied "mocks prd cannot read corpus" "$(as mocks prd meritum "SELECT v FROM corpus.doc")"
+
 first_passwords=$(cat "$state/db.env")
 m_db_passwords "$state/db.env" "${pw_vars[@]}" 2>/dev/null
 check "second run keeps the generated passwords" "$(cat "$state/db.env")" "$first_passwords"
@@ -71,4 +83,5 @@ apply
 check "second run keeps data" "$(as api dev app "SELECT v FROM t")" b
 check "second run keeps the DBOS schema" "$(as worker dev meritum_dbos_dev "SELECT count(*) FROM pg_namespace WHERE nspname = 'dbos'")" 1
 check "api prd logs in after the second run" "$(as api prd app "SELECT current_user")" meritum_api_prd
+check "second run keeps the corpus data" "$(as api dev app "SELECT v FROM corpus.doc")" c
 exit "$fail"
