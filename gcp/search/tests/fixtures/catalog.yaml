@@ -1,0 +1,8 @@
+# Shape of core's catalog.yaml (core#22): only the fields this module reads.
+entries:
+- domain: www.gov.pl/web/mswia
+- domain: www.gov.pl/web/mswia/regionalny-system-ostrzegania
+- domain: policja.pl
+- domain: archiwum.example.pl
+  excluded: true
+  exclusion_reason: 'robots.txt: Disallow: /'

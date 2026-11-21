@@ -99,9 +99,11 @@ Koszt: ok. 0,135 USD/h za maszynę, czyli ok. 0,67 USD/h za pięć, dopóki dzia
 
 `gcp/storage/` zakłada prywatny bucket Cloud Storage na nagrania i obrazy przesłane do sprawdzenia (ADR-31, retencja 30 dni, `europe-central2`) oraz konta serwisowe `meritum-backend`, `meritum-worker` i `meritum-speech`. Co tworzy, zmienne i apply: [README](gcp/storage/README.md).
 
+`gcp/search/` zakłada data store Vertex AI Search do wyszukiwania na żywo (US-KOR-04, ADR-07): website data store w lokalizacji `global`, wzorce INCLUDE z katalogu źródeł z meritum-core i wyszukiwarkę w edycji Enterprise. Szczegóły, koszt i migracja do `eu`: [README](gcp/search/README.md).
+
 ## Stan Terraform na GCP
 
-Stan modułów z `gcp/` leży w prywatnym buckecie `agro-prj-sandbox-sd-2332277-meritum-tfstate` (`europe-central2`, wersjonowanie obiektów, publiczny dostęp zablokowany), każdy moduł pod własnym prefiksem: `app`, `gh-actions`, `storage`, `state`, `workload-identity`. Bucket zakłada moduł `gcp/state/` i trzyma w nim także własny stan. Backend GCS blokuje stan na czas `plan` i `apply`, więc dwie osoby nie nadpiszą go sobie nawzajem. Stan `gh-actions` zawiera wrażliwe wartości (hash hasła admina, klucz SSH, token rejestracji runnera), a czyta go każdy z dostępem do odczytu obiektów w projekcie.
+Stan modułów z `gcp/` leży w prywatnym buckecie `agro-prj-sandbox-sd-2332277-meritum-tfstate` (`europe-central2`, wersjonowanie obiektów, publiczny dostęp zablokowany), każdy moduł pod własnym prefiksem: `app`, `gh-actions`, `search`, `storage`, `state`, `workload-identity`. Bucket zakłada moduł `gcp/state/` i trzyma w nim także własny stan. Backend GCS blokuje stan na czas `plan` i `apply`, więc dwie osoby nie nadpiszą go sobie nawzajem. Stan `gh-actions` zawiera wrażliwe wartości (hash hasła admina, klucz SSH, token rejestracji runnera), a czyta go każdy z dostępem do odczytu obiektów w projekcie.
 
 Druga osoba potrzebuje tylko dostępu do projektu: `gcloud auth application-default login`, potem w czystym klonie `terraform -chdir=gcp/<moduł> init` i `plan`. Lokalnych plików `terraform.tfstate` nie ma i nie trzeba ich przekazywać.
 
