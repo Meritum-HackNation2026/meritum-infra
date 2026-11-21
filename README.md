@@ -20,7 +20,7 @@ jobs:
 | --- | --- |
 | Sieć Dockera | `meritum` |
 | PostgreSQL | kontener `meritum-postgres` (pgvector, PG 18), baza `meritum`, wolumen `meritum-postgres-data` |
-| Role i schematy | `meritum_api_dev` → `api_dev`, `meritum_api_prd` → `api_prd`, `meritum_worker_dev` → `worker_dev`, `meritum_worker_prd` → `worker_prd`; każda rola ma tylko swój schemat (plus odczyt `public`, gdzie jest pgvector) |
+| Role i schematy | `meritum_api_dev` → `api_dev`, `meritum_api_prd` → `api_prd`, `meritum_worker_dev` → `worker_dev`, `meritum_worker_prd` → `worker_prd`; każda rola ma tylko swój schemat (plus odczyt `public`, gdzie są pgvector i pg_trgm) |
 | Pliki env | `~meritum-runner/meritum/envs/{api,worker}-{dev,prd}.env` (600), czytane przez deploye aplikacji; hasła w `~/meritum/db.env`, wspólne sekrety aplikacji opcjonalnie w `~/meritum/app.env` |
 | Gateway | `meritum-gateway` (nginx) na `172.17.0.1:18095`: `meritum.gburek.app` → `meritum-web-prd`, `meritum-dev.gburek.app` → `meritum-web-dev` |
 | Cloudflare | reguły tunelu i rekordy DNS dla obu adresów (sekret organizacji `CLOUDFLARE_API_TOKEN`, zmienne `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_TUNNEL_ID`, `CLOUDFLARE_ZONE_ID`) |

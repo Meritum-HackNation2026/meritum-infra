@@ -65,6 +65,7 @@ done
   echo "REVOKE ALL ON DATABASE meritum FROM PUBLIC;"
   echo "REVOKE CREATE ON SCHEMA public FROM PUBLIC;"
   echo "CREATE EXTENSION IF NOT EXISTS vector SCHEMA public;"
+  echo "CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public;"
   for app in "${APPS[@]}"; do for env in "${ENVS[@]}"; do
     role=$(m_role "$app" "$env"); schema=$(m_schema "$app" "$env"); var=$(pw_var "$app" "$env")
     echo "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$role') THEN CREATE ROLE $role; END IF; END \$\$;"
