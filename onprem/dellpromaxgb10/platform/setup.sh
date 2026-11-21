@@ -4,12 +4,10 @@
 #
 #   network   meritum (private Docker network of every Meritum container)
 #   postgres  meritum-postgres (image postgres/Dockerfile: pgvector + Polish FTS `public.polish`),
-#             database `meritum`, one role + schema per app and env:
-#               meritum_api_dev    -> api_dev       meritum_api_prd    -> api_prd
-#               meritum_worker_dev -> worker_dev    meritum_worker_prd -> worker_prd
-#                                                 meritum_mocks_prd  -> mocks_prd
-#             (worker_<env> also holds the DBOS system tables of that env;
-#             mocks deploy from main only, so they have no dev env)
+#             database `meritum` with schemas app_dev and app_prd (owned by
+#             meritum_worker_<env>, read/write for meritum_api_<env>), mocks_prd
+#             (meritum_mocks_prd; mocks deploy from main only, so no dev env),
+#             and one DBOS database per env, meritum_dbos_<env> (db.sh)
 #   env files ~/meritum/envs/<app>-<env>.env (mode 600), read by the app deploys
 #   gateway   meritum-gateway (nginx) on 172.17.0.1:18095, reachable by cloudflared only
 #   routes    meritum.gburek.app -> meritum-web-prd, meritum-dev.gburek.app -> meritum-web-dev,
@@ -23,6 +21,8 @@ set -euo pipefail
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=onprem/dellpromaxgb10/platform/lib.sh
 . "$here/lib.sh"
+# shellcheck source=onprem/dellpromaxgb10/platform/db.sh
+. "$here/db.sh"
 
 APPS=(api worker mocks)
 ENVS=(dev prd)
@@ -37,7 +37,6 @@ flock 9
 umask 077
 touch "$M_STATE/db.env"
 gen_password() { head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 32; }
-pw_var() { printf '%s_PASSWORD' "$(printf '%s_%s' "$1" "$2" | tr '[:lower:]' '[:upper:]')"; }
 vars=(POSTGRES_PASSWORD)
 for app in "${APPS[@]}"; do for env in "${ENVS[@]}"; do has_env "$app" "$env" && vars+=("$(pw_var "$app" "$env")"); done; done
 for var in "${vars[@]}"; do
@@ -81,49 +80,45 @@ for i in $(seq 60); do
   sleep 1
 done
 
-# Each role owns only its schema; public is read-only (extensions such as pgvector live there).
+# Roles, schemas and DBOS databases (db.sh); public stays read-only (pgvector, pg_trgm, polish).
+mocks_envs=(); for env in "${ENVS[@]}"; do if has_env mocks "$env"; then mocks_envs+=("$env"); fi; done
 {
-  echo "REVOKE ALL ON DATABASE meritum FROM PUBLIC;"
-  echo "REVOKE CREATE ON SCHEMA public FROM PUBLIC;"
   cat "$here/postgres/extensions.sql"
   cat "$here/postgres/polish-fts.sql"
-  for app in "${APPS[@]}"; do for env in "${ENVS[@]}"; do
-    has_env "$app" "$env" || continue
-    role=$(m_role "$app" "$env"); schema=$(m_schema "$app" "$env"); var=$(pw_var "$app" "$env")
-    echo "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$role') THEN CREATE ROLE $role; END IF; END \$\$;"
-    echo "ALTER ROLE $role WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '${!var}';"
-    echo "GRANT CONNECT ON DATABASE meritum TO $role;"
-    echo "CREATE SCHEMA IF NOT EXISTS $schema AUTHORIZATION $role;"
-    echo "ALTER ROLE $role SET search_path = $schema, public;"
-  done; done
+  m_db_sql "${ENVS[*]}" "${mocks_envs[*]}"
 } | docker exec -i -e PGOPTIONS="-c client_min_messages=warning" "$M_POSTGRES" psql -q -v ON_ERROR_STOP=1 -U meritum -d meritum >/dev/null
-m_log "roles, schemas and Polish FTS ready: ${APPS[*]} x ${ENVS[*]} (mocks: prd only)"
+m_log "roles, app schemas, DBOS databases and Polish FTS ready: ${ENVS[*]} (mocks: prd only)"
 
 # --- env files for the app deploys -------------------------------------------------
 gateway_subnet=$(docker network inspect "$M_NETWORK" -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' | awk '{print $1}')
-url() { local var; var=$(pw_var "$1" "$2"); printf 'postgresql://%s:%s@%s:5432/meritum' "$(m_role "$1" "$2")" "${!var}" "$M_POSTGRES"; }
+pw() { local var; var=$(pw_var "$1" "$2"); printf '%s' "${!var}"; }
+# MERITUM_DATABASE_URL: database meritum, search_path app_<env>, public.
+app_url() { m_db_url "$(m_role "$1" "$2")" "$(pw "$1" "$2")" meritum "$(m_app_schema "$2")"; }
+# MERITUM_DBOS_URL: the env's DBOS database; tables in schema dbos (DBOS default).
+dbos_url() { m_db_url "$(m_role "$1" "$2")" "$(pw "$1" "$2")" "$(m_dbos_db "$2")"; }
 extra() { if [ -f "$M_STATE/app.env" ]; then grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$M_STATE/app.env" || true; fi; }
 for env in "${ENVS[@]}"; do
   {
     printf 'MERITUM_ENV=%s\n' "$env"
-    printf 'MERITUM_DATABASE_URL=%s\n' "$(url api "$env")"
+    printf 'MERITUM_DATABASE_URL=%s\n' "$(app_url api "$env")"
     # The API enqueues into the worker's DBOS tables with its own role
     # (access granted by `dbos migrate -r` in the worker deploy).
-    printf 'MERITUM_DBOS_URL=%s\n' "$(url api "$env")"
-    printf 'MERITUM_DBOS_SCHEMA=%s\n' "$(m_schema worker "$env")"
+    printf 'MERITUM_DBOS_URL=%s\n' "$(dbos_url api "$env")"
+    printf 'MERITUM_DBOS_SCHEMA=dbos\n'
     printf 'FORWARDED_ALLOW_IPS=%s\n' "$gateway_subnet"
     extra
   } >"$M_STATE/envs/api-$env.env"
   {
     printf 'MERITUM_ENV=%s\n' "$env"
-    printf 'MERITUM_DBOS_URL=%s\n' "$(url worker "$env")"
-    printf 'MERITUM_DBOS_SCHEMA=%s\n' "$(m_schema worker "$env")"
+    printf 'MERITUM_DATABASE_URL=%s\n' "$(app_url worker "$env")"
+    printf 'MERITUM_DBOS_URL=%s\n' "$(dbos_url worker "$env")"
+    printf 'MERITUM_DBOS_SCHEMA=dbos\n'
     printf 'MERITUM_API_ROLE=%s\n' "$(m_role api "$env")"
     extra
   } >"$M_STATE/envs/worker-$env.env"
   has_env mocks "$env" && {
     printf 'MERITUM_ENV=%s\n' "$env"
-    printf 'DATABASE_URL=%s\n' "$(url mocks "$env")"
+    printf 'DATABASE_URL=%s\n' "$(m_db_url "$(m_role mocks "$env")" "$(pw mocks "$env")" meritum)"
   } >"$M_STATE/envs/mocks-$env.env"
 done
 m_log "env files written to $M_STATE/envs"
