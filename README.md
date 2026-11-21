@@ -21,6 +21,7 @@ jobs:
 | Sieć Dockera | `meritum` |
 | PostgreSQL | kontener `meritum-postgres` z obrazu `platform/postgres/` (PG 18, pgvector, pg_trgm, polski słownik Hunspell), baza `meritum`, wolumen `meritum-postgres-data`. Wyszukiwanie pełnotekstowe po polsku: konfiguracja `public.polish`, np. `to_tsvector('public.polish', tekst) @@ websearch_to_tsquery('public.polish', pytanie)`. Zmiana obrazu podmienia kontener na tym samym wolumenie, po zrzucie `pg_dumpall` do `~/meritum/backups/` |
 | Bazy, schematy i role | baza `meritum`: schematy `app_dev` i `app_prd` (właściciel `meritum_worker_<env>`, który robi migracje; `meritum_api_<env>` czyta i zapisuje bez prawa do DDL), `mocks_prd` (`meritum_mocks_prd`, mocki wdrażamy wyłącznie z `main`) a wspólny `corpus` dochodzi w infra#4 (tego skryptu go nie zakłada). Tabele DBOS w osobnej bazie na środowisko: `meritum_dbos_dev`, `meritum_dbos_prd` (właściciel rola workera, API ma `CONNECT`, a dostęp do schematu `dbos` dostaje przez `dbos migrate -r` w deployu workera). Role jednego środowiska nie mają dostępu do schematu ani bazy DBOS drugiego; wszyscy czytają `public` (pgvector, pg_trgm, `public.polish`). Układ: `platform/db.sh` |
+| Pliki przesłane przez obywateli | wolumen Dockera `meritum-files-<env>`, ten sam dla backendu i workera danego środowiska (odpowiednik bucketu z `gcp/storage/`). Deploy aplikacji montuje go pod `MERITUM_FILES_DIR` (`/var/lib/meritum/files`): `-v "$MERITUM_FILES_VOLUME:$MERITUM_FILES_DIR"`, obie zmienne są w plikach env API i workera. Retencja 30 dni należy tu do adaptera systemu plików (core/021) |
 | Pliki env | `~meritum-runner/meritum/envs/{api,worker}-{dev,prd}.env` i `mocks-prd.env` (600), czytane przez deploye aplikacji: `MERITUM_DATABASE_URL` (baza `meritum`, `search_path` `app_<env>, public` w parametrze `options`), `MERITUM_DBOS_URL` (baza `meritum_dbos_<env>`), `MERITUM_DBOS_SCHEMA=dbos`, u workera `MERITUM_API_ROLE`; hasła w `~/meritum/db.env`, wspólne sekrety aplikacji opcjonalnie w `~/meritum/app.env` |
 | Gateway | `meritum-gateway` (nginx) na `172.17.0.1:18095`: `meritum.gburek.app` → `meritum-web-prd`, `meritum-dev.gburek.app` → `meritum-web-dev`, `meritum-<platforma>.gburek.app` → `meritum-mocks-prd` (platformy: x, facebook, instagram, reddit, tiktok) |
 | Cloudflare | reguły tunelu i rekordy DNS dla wszystkich 7 adresów (sekret repo `CLOUDFLARE_API_TOKEN`: token konta `meritum-platform-deploy`, Tunnel Edit i DNS Edit na gburek.app, wygasa 2026-12-21; zmienne repo `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_TUNNEL_ID`, `CLOUDFLARE_ZONE_ID`) |
@@ -77,3 +78,27 @@ Liczba runnerów: `runner_count`, domyślnie 5 w `gcp/gh-actions/variables.tf`. 
 Dostęp: `ssh -i .ssh/meritum-runner meritum@<ip>` (IP: `terraform -chdir=gcp/gh-actions output runners`). Log instalacji: `/var/log/meritum-runner-setup.log`.
 
 Koszt: ok. 0,135 USD/h za maszynę, czyli ok. 0,67 USD/h za pięć, dopóki działają. Wyłączenie: `scripts/apply.sh destroy` (runnery trzeba potem usunąć z ustawień organizacji).
+
+## Bucket na pliki od obywateli (GCP)
+
+`gcp/storage/` zakłada prywatny bucket Cloud Storage na nagrania i obrazy przesłane do sprawdzenia (ADR-31) oraz konta serwisowe, które z niego korzystają.
+
+| Element | Szczegóły |
+| --- | --- |
+| Region | `europe-central2` (Warszawa), klasa `STANDARD` |
+| Dostęp | publiczny zablokowany (`public_access_prevention = enforced`), jednolity dostęp na poziomie bucketu, bez ACL obiektów |
+| Retencja | reguła cyklu życia usuwa obiekt 30 dni po zapisie, czyli po retencji zapisu sprawdzenia (`retention_days`) |
+| `meritum-backend` | `roles/storage.objectCreator`: tylko zapis nowych obiektów |
+| `meritum-worker` | `roles/storage.objectViewer` i własna rola `meritumObjectDeleter` (`storage.objects.delete`) |
+| `meritum-speech` | `roles/storage.objectViewer`: Speech-to-Text w trybie batch czyta nagrania dłuższe niż około minuty z `gs://` |
+
+Rejestr podmiotów przetwarzających (design-system/002): Google Cloud przechowuje te pliki w `europe-central2` przez najwyżej 30 dni; Speech-to-Text przetwarza je w tym samym regionie.
+
+CI (`.github/workflows/terraform.yml`) uruchamia dla każdego modułu w `gcp/` `terraform fmt -check`, `terraform validate` i `terraform test` (plan na atrapie dostawcy, bez poświadczeń). `terraform apply` tylko ręcznie:
+
+```bash
+cp gcp/storage/terraform.tfvars.example gcp/storage/terraform.tfvars   # project_id
+terraform -chdir=gcp/storage init
+terraform -chdir=gcp/storage plan -out=storage.tfplan
+terraform -chdir=gcp/storage apply storage.tfplan
+```

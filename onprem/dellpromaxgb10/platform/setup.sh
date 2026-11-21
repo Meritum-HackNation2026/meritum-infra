@@ -8,6 +8,7 @@
 #             meritum_worker_<env>, read/write for meritum_api_<env>), mocks_prd
 #             (meritum_mocks_prd; mocks deploy from main only, so no dev env),
 #             and one DBOS database per env, meritum_dbos_<env> (db.sh)
+#   files     volume meritum-files-<env>, shared by the api and worker of that env
 #   env files ~/meritum/envs/<app>-<env>.env (mode 600), read by the app deploys
 #   gateway   meritum-gateway (nginx) on 172.17.0.1:18095, reachable by cloudflared only
 #   routes    meritum.gburek.app -> meritum-web-prd, meritum-dev.gburek.app -> meritum-web-dev,
@@ -83,6 +84,12 @@ mocks_envs=(); for env in "${ENVS[@]}"; do if has_env mocks "$env"; then mocks_e
 } | docker exec -i -e PGOPTIONS="-c client_min_messages=warning" "$M_POSTGRES" psql -q -v ON_ERROR_STOP=1 -U meritum -d meritum >/dev/null
 m_log "roles, app schemas, DBOS databases and Polish FTS ready: ${ENVS[*]} (mocks: prd only)"
 
+# --- uploaded files: one volume per env, shared by api and worker --------------------
+for env in "${ENVS[@]}"; do
+  docker volume inspect "$(m_files_volume "$env")" >/dev/null 2>&1 \
+    || docker volume create --label meritum.managed=true "$(m_files_volume "$env")" >/dev/null
+done
+
 # --- env files for the app deploys -------------------------------------------------
 gateway_subnet=$(docker network inspect "$M_NETWORK" -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' | awk '{print $1}')
 pw() { local var; var=$(pw_var "$1" "$2"); printf '%s' "${!var}"; }
@@ -100,6 +107,8 @@ for env in "${ENVS[@]}"; do
     printf 'MERITUM_DBOS_URL=%s\n' "$(dbos_url api "$env")"
     printf 'MERITUM_DBOS_SCHEMA=dbos\n'
     printf 'FORWARDED_ALLOW_IPS=%s\n' "$gateway_subnet"
+    printf 'MERITUM_FILES_VOLUME=%s\n' "$(m_files_volume "$env")"
+    printf 'MERITUM_FILES_DIR=%s\n' "$M_FILES_DIR"
     extra
   } >"$M_STATE/envs/api-$env.env"
   {
@@ -108,6 +117,8 @@ for env in "${ENVS[@]}"; do
     printf 'MERITUM_DBOS_URL=%s\n' "$(dbos_url worker "$env")"
     printf 'MERITUM_DBOS_SCHEMA=dbos\n'
     printf 'MERITUM_API_ROLE=%s\n' "$(m_role api "$env")"
+    printf 'MERITUM_FILES_VOLUME=%s\n' "$(m_files_volume "$env")"
+    printf 'MERITUM_FILES_DIR=%s\n' "$M_FILES_DIR"
     extra
   } >"$M_STATE/envs/worker-$env.env"
   has_env mocks "$env" && {
