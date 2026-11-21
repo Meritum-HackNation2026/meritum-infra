@@ -119,6 +119,7 @@ for env in "${ENVS[@]}"; do
   {
     printf 'MERITUM_ENV=%s\n' "$env"
     printf 'MERITUM_DATABASE_URL=%s\n' "$(app_url api "$env")"
+    m_app_env api "$env"
     # The API enqueues into the worker's DBOS tables with its own role
     # (access granted by `dbos migrate -r` in the worker deploy).
     printf 'MERITUM_DBOS_URL=%s\n' "$(dbos_url api "$env")"
@@ -131,6 +132,7 @@ for env in "${ENVS[@]}"; do
   {
     printf 'MERITUM_ENV=%s\n' "$env"
     printf 'MERITUM_DATABASE_URL=%s\n' "$(app_url worker "$env")"
+    m_app_env worker "$env"
     printf 'MERITUM_DBOS_URL=%s\n' "$(dbos_url worker "$env")"
     printf 'MERITUM_DBOS_SCHEMA=dbos\n'
     printf 'MERITUM_API_ROLE=%s\n' "$(m_role api "$env")"
