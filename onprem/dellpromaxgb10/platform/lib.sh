@@ -31,14 +31,23 @@ M_FILES_DIR="/var/lib/meritum/files"
 m_files_volume() { printf 'meritum-files-%s' "$1"; }
 # Env file lines of the files volume, the same for the api and worker of env $1.
 m_files_env() { printf 'MERITUM_FILES_VOLUME=%s\nMERITUM_FILES_DIR=%s\n' "$(m_files_volume "$1")" "$M_FILES_DIR"; }
-# LLM stub fixtures inside the worker image; dev runs the stub, which without them fails every check (worker#68).
+# LLM stub fixtures inside the worker image, kept on dev for a switch back to the stub, which without them fails every check (worker#68).
 M_LLM_STUB_FIXTURES="/app/features/fixtures/llm_stub_answer.json"
+# LLM of the worker (core#97, D9): Claude Haiku 5.5 via OpenRouter on dev. OPENROUTER_API_KEY
+# comes from the meritum-worker deploy (repository secret), never from these files. Prd keeps the
+# stub until its deploy passes the key, because core's default provider is now openrouter.
+M_LLM_MODEL="anthropic/claude-haiku-5.5"
+M_LLM_REASONING="high"
 # Env file lines of app $1 (api, worker) in env $2: meritum-core repositories in PostgreSQL,
-# the dev worker's stub fixtures, and the prd worker's writable corpus URL in $3.
+# the worker's LLM, the dev worker's stub fixtures, and the prd worker's writable corpus URL in $3.
 m_app_env() {
   printf 'MERITUM_DATABASE_PROVIDER=postgres\n'
-  if [ "$1-$2" = worker-dev ]; then printf 'MERITUM_LLM_STUB_FIXTURES=%s\n' "$M_LLM_STUB_FIXTURES"; fi
+  if [ "$1-$2" = worker-dev ]; then
+    printf 'MERITUM_LLM_STUB_FIXTURES=%s\n' "$M_LLM_STUB_FIXTURES"
+    printf 'MERITUM_LLM_PROVIDER=openrouter\nMERITUM_LLM_MODEL=%s\nMERITUM_LLM_REASONING=%s\n' "$M_LLM_MODEL" "$M_LLM_REASONING"
+  fi
   if [ "$1-$2" = worker-prd ]; then
+    printf 'MERITUM_LLM_PROVIDER=stub\n'
     printf 'MERITUM_CORPUS_PROVIDER=postgres\nMERITUM_CORPUS_DATABASE_URL=%s\n' "$3"
   fi
 }
