@@ -129,7 +129,9 @@ else
   # shellcheck source=onprem/dellpromaxgb10/platform/cloudflare.sh
   . "$here/cloudflare.sh"
   for env in "${ENVS[@]}"; do
-    for host in "$(m_host "$env")" $(for p in "${M_MOCK_PLATFORMS[@]}"; do m_mock_host "$p" "$env"; done); do
+    hosts=("$(m_host "$env")")
+    for p in "${M_MOCK_PLATFORMS[@]}"; do hosts+=("$(m_mock_host "$p" "$env")"); done
+    for host in "${hosts[@]}"; do
       cf_ingress_ensure "$host" "http://$M_GATEWAY_BIND"
       cf_dns_ensure "$host"
     done
