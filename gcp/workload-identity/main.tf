@@ -36,7 +36,7 @@ resource "google_iam_workload_identity_pool_provider" "server" {
   x509 {
     trust_store {
       trust_anchors {
-        pem_certificate = var.trust_anchor_pem
+        pem_certificate = trimspace(var.trust_anchor_pem) # IAM rejects a trailing newline
       }
     }
   }

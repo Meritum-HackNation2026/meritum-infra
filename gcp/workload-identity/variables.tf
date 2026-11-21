@@ -7,7 +7,7 @@ variable "trust_anchor_pem" {
   type        = string
   description = "CA certificate of dellpromaxgb10 (~meritum-runner/meritum/gcp/ca/ca.pem), public."
   validation {
-    condition     = startswith(trimspace(var.trust_anchor_pem), "-----BEGIN CERTIFICATE-----")
+    condition     = startswith(trimspace(var.trust_anchor_pem), "-----BEGIN CERTIFICATE-----") && endswith(trimspace(var.trust_anchor_pem), "-----END CERTIFICATE-----")
     error_message = "trust_anchor_pem must be a PEM certificate."
   }
 }

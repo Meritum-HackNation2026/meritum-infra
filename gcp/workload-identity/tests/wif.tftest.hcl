@@ -16,8 +16,8 @@ run "server_certificate_only" {
   command = plan
 
   assert {
-    condition     = one(one(one(google_iam_workload_identity_pool_provider.server.x509).trust_store).trust_anchors).pem_certificate == var.trust_anchor_pem
-    error_message = "Only certificates signed by the server's CA are trusted."
+    condition     = one(one(one(google_iam_workload_identity_pool_provider.server.x509).trust_store).trust_anchors).pem_certificate == "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----"
+    error_message = "Only the server's CA is trusted, trimmed: the IAM API rejects a trailing newline."
   }
   assert {
     condition     = google_iam_workload_identity_pool_provider.server.attribute_mapping["google.subject"] == "assertion.subject.dn.cn"
