@@ -25,5 +25,11 @@ M_MOCK_PLATFORMS=(x facebook instagram reddit tiktok)
 m_log() { printf '[meritum] %s\n' "$*" >&2; }
 m_role() { printf 'meritum_%s_%s' "$1" "$2"; }
 m_schema() { printf '%s_%s' "$1" "$2"; }
+# Uploaded files of one env (GCS bucket on GCP, ADR-31): Docker volume mounted by
+# the backend and the worker at M_FILES_DIR; adapter core/021 reads MERITUM_FILES_DIR.
+M_FILES_DIR="/var/lib/meritum/files"
+m_files_volume() { printf 'meritum-files-%s' "$1"; }
+# Env file lines of the files volume, the same for the api and worker of env $1.
+m_files_env() { printf 'MERITUM_FILES_VOLUME=%s\nMERITUM_FILES_DIR=%s\n' "$(m_files_volume "$1")" "$M_FILES_DIR"; }
 m_host() { if [ "$1" = prd ]; then printf 'meritum.%s' "$M_DOMAIN"; else printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; fi; }
 m_mock_host() { if [ "$2" = prd ]; then printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; else printf 'meritum-%s-%s.%s' "$1" "$2" "$M_DOMAIN"; fi; }
