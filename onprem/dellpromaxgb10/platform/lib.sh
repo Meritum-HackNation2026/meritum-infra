@@ -29,6 +29,10 @@ m_schema() { printf '%s_%s' "$1" "$2"; }
 # the backend and the worker at M_FILES_DIR; adapter core/021 reads MERITUM_FILES_DIR.
 M_FILES_DIR="/var/lib/meritum/files"
 m_files_volume() { printf 'meritum-files-%s' "$1"; }
+# The backend and worker images run as nonroot, uid 999; a new volume belongs to root.
+M_APP_UID=999
+# Give volume $1 to the app user, with any local image $2 that has chown.
+m_files_own() { docker run --rm --user 0 --entrypoint chown -v "$1:/files" "$2" "$M_APP_UID:$M_APP_UID" /files; }
 # Env file lines of the files volume, the same for the api and worker of env $1.
 m_files_env() { printf 'MERITUM_FILES_VOLUME=%s\nMERITUM_FILES_DIR=%s\n' "$(m_files_volume "$1")" "$M_FILES_DIR"; }
 # LLM stub fixtures inside the worker image, kept on dev for a switch back to the stub, which without them fails every check (worker#68).

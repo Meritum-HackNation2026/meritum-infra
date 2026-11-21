@@ -94,6 +94,7 @@ m_log "roles, app schemas, corpus, DBOS databases and Polish FTS ready: ${ENVS[*
 for env in "${ENVS[@]}"; do
   docker volume inspect "$(m_files_volume "$env")" >/dev/null 2>&1 \
     || docker volume create --label meritum.managed=true "$(m_files_volume "$env")" >/dev/null
+  m_files_own "$(m_files_volume "$env")" "$M_POSTGRES_IMAGE"
 done
 
 # --- GCP: workload identity of the api and worker (gcp/workload-identity/) ------------
