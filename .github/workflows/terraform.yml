@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [gcp/gh-actions, gcp/storage]
+        module: [gcp/gh-actions, gcp/state, gcp/storage]
     defaults:
       run:
         working-directory: ${{ matrix.module }}

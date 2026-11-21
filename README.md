@@ -73,6 +73,8 @@ jobs:
 3. Grupa runnerów musi istnieć (raz na organizację): `gh api -X POST orgs/Meritum-HackNation2026/actions/runner-groups -f name=meritum-gcp -f visibility=all`.
 4. `scripts/apply.sh plan`, potem `scripts/apply.sh apply`.
 
+Stan modułu leży w buckecie stanu GCS pod prefiksem `gh-actions` (sekcja „Stan Terraform na GCP”), więc `plan` i `apply` może uruchomić każdy z dostępem do projektu, bez lokalnego `terraform.tfstate`. W kopii, która ma jeszcze lokalny stan, `scripts/apply.sh` zatrzyma się na zmianie backendu: najpierw `terraform -chdir=gcp/gh-actions init -migrate-state`.
+
 Nowa maszyna rejestruje się w grupie `runner_group` przy pierwszym starcie. Runner zarejestrowany wcześniej w innej grupie przenosi się ręcznie: `gh api -X PUT orgs/Meritum-HackNation2026/actions/runner-groups/<id grupy>/runners/<id runnera>` (identyfikatory: `gh api orgs/Meritum-HackNation2026/actions/runner-groups` i `.../actions/runners`).
 
 Skrypt pobiera jednorazowy token rejestracji runnera (ważny 1 h) i przekazuje sekrety z `.env` jako `TF_VAR_*`. Maszyny przy starcie instalują Dockera i runnera, rejestrują się raz i działają jako usługa systemd.
@@ -85,24 +87,30 @@ Koszt: ok. 0,135 USD/h za maszynę, czyli ok. 0,67 USD/h za pięć, dopóki dzia
 
 ## Bucket na pliki od obywateli (GCP)
 
-`gcp/storage/` zakłada prywatny bucket Cloud Storage na nagrania i obrazy przesłane do sprawdzenia (ADR-31) oraz konta serwisowe, które z niego korzystają.
+`gcp/storage/` zakłada prywatny bucket Cloud Storage na nagrania i obrazy przesłane do sprawdzenia (ADR-31, retencja 30 dni, `europe-central2`) oraz konta serwisowe `meritum-backend`, `meritum-worker` i `meritum-speech`. Co tworzy, zmienne i apply: [README](gcp/storage/README.md).
 
-| Element | Szczegóły |
-| --- | --- |
-| Region | `europe-central2` (Warszawa), klasa `STANDARD` |
-| Dostęp | publiczny zablokowany (`public_access_prevention = enforced`), jednolity dostęp na poziomie bucketu, bez ACL obiektów |
-| Retencja | reguła cyklu życia usuwa obiekt 30 dni po zapisie, czyli po retencji zapisu sprawdzenia (`retention_days`) |
-| `meritum-backend` | `roles/storage.objectCreator`: tylko zapis nowych obiektów |
-| `meritum-worker` | `roles/storage.objectViewer` i własna rola `meritumObjectDeleter` (`storage.objects.delete`) |
-| `meritum-speech` | `roles/storage.objectViewer`: Speech-to-Text w trybie batch czyta nagrania dłuższe niż około minuty z `gs://` |
+## Stan Terraform na GCP
 
-Rejestr podmiotów przetwarzających (design-system/002): Google Cloud przechowuje te pliki w `europe-central2` przez najwyżej 30 dni; Speech-to-Text przetwarza je w tym samym regionie.
+Stan modułów z `gcp/` leży w prywatnym buckecie `agro-prj-sandbox-sd-2332277-meritum-tfstate` (`europe-central2`, wersjonowanie obiektów, publiczny dostęp zablokowany), każdy moduł pod własnym prefiksem: `gh-actions`, `storage`, `state`. Bucket zakłada moduł `gcp/state/` i trzyma w nim także własny stan. Backend GCS blokuje stan na czas `plan` i `apply`, więc dwie osoby nie nadpiszą go sobie nawzajem. Stan `gh-actions` zawiera wrażliwe wartości (hash hasła admina, klucz SSH, token rejestracji runnera), a czyta go każdy z dostępem do odczytu obiektów w projekcie.
 
-CI (`.github/workflows/terraform.yml`) uruchamia dla każdego modułu w `gcp/` `terraform fmt -check`, `terraform validate` i `terraform test` (plan na atrapie dostawcy, bez poświadczeń). `terraform apply` tylko ręcznie:
+Druga osoba potrzebuje tylko dostępu do projektu: `gcloud auth application-default login`, potem w czystym klonie `terraform -chdir=gcp/<moduł> init` i `plan`. Lokalnych plików `terraform.tfstate` nie ma i nie trzeba ich przekazywać.
+
+Poprzednią wersję stanu przywraca się z historii obiektu: `gcloud storage ls -a gs://agro-prj-sandbox-sd-2332277-meritum-tfstate/<prefiks>/default.tfstate`, potem `gcloud storage cp` wybranej generacji na `default.tfstate`.
+
+Bloki `backend "gcs"` nie przyjmują zmiennych, więc nazwa bucketu jest wpisana w każdy moduł; `project_id` w `gcp/state` musi być `agro-prj-sandbox-sd-2332277` (test modułu sprawdza, że dla tego projektu nazwa wychodzi taka jak w blokach backend; bloków w innych modułach nie czyta).
+
+CI (`.github/workflows/terraform.yml`) uruchamia dla każdego modułu w `gcp/` `terraform fmt -check`, `terraform validate` i `terraform test` (plan na atrapie dostawcy, bez poświadczeń, `init -backend=false`).
+
+Pierwsze założenie bucketu (raz na projekt, bucket jeszcze nie istnieje, więc moduł startuje ze stanem lokalnym):
 
 ```bash
-cp gcp/storage/terraform.tfvars.example gcp/storage/terraform.tfvars   # project_id
-terraform -chdir=gcp/storage init
-terraform -chdir=gcp/storage plan -out=storage.tfplan
-terraform -chdir=gcp/storage apply storage.tfplan
+cp gcp/state/terraform.tfvars.example gcp/state/terraform.tfvars   # project_id
+printf 'terraform {\n  backend "local" {}\n}\n' >gcp/state/backend_override.tf   # ignorowany przez git
+terraform -chdir=gcp/state init
+terraform -chdir=gcp/state plan -out=state.tfplan
+terraform -chdir=gcp/state apply state.tfplan
+rm gcp/state/backend_override.tf
+terraform -chdir=gcp/state init -migrate-state   # przenosi stan bucketu do niego samego
 ```
+
+Przeniesienie lokalnego stanu modułu do bucketu (raz na moduł): `terraform -chdir=gcp/<moduł> init -migrate-state`, potem `plan` musi pokazać `No changes`. Dopiero wtedy lokalny `terraform.tfstate` można usunąć.
