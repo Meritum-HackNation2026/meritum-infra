@@ -84,3 +84,15 @@ run "dlp_and_service_usage_for_api_and_worker" {
     error_message = "Service Usage consumer role for quota project checks."
   }
 }
+
+run "live_web_search_for_worker_only" {
+  command = plan
+
+  assert {
+    condition = (
+      google_project_iam_member.discoveryengine_viewer.role == "roles/discoveryengine.viewer" &&
+      google_project_iam_member.discoveryengine_viewer.member == "serviceAccount:meritum-worker@meritum-test.iam.gserviceaccount.com"
+    )
+    error_message = "Only meritum-worker calls :search on the meritum-live-search serving config (infra#42)."
+  }
+}

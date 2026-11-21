@@ -100,6 +100,7 @@ done
 # --- GCP: workload identity of the api and worker (gcp/workload-identity/) ------------
 gcp_env() { :; }
 gcp_pii() { :; }
+gcp_web_search() { :; }
 if [ -z "${MERITUM_GCP_PROJECT_ID:-}" ] || [ -z "${MERITUM_GCP_PROJECT_NUMBER:-}" ]; then
   m_log "WARNING: MERITUM_GCP_PROJECT_ID or MERITUM_GCP_PROJECT_NUMBER unset, no GCP credentials"
   echo "::warning title=GCP::GCP_PROJECT_ID or GCP_PROJECT_NUMBER is not set; api and worker get no GCP credentials"
@@ -107,6 +108,7 @@ else
   m_wif_issue "$M_STATE/gcp" "$MERITUM_GCP_PROJECT_ID" "$MERITUM_GCP_PROJECT_NUMBER"
   gcp_env() { m_wif_env "$M_STATE/gcp" "$1" "$MERITUM_GCP_PROJECT_ID"; }
   gcp_pii() { m_pii_env "$MERITUM_GCP_PROJECT_ID"; }
+  gcp_web_search() { m_web_search_env "$1" "$2" "$MERITUM_GCP_PROJECT_NUMBER"; }
   m_log "GCP credentials ready; trust anchor $M_STATE/gcp/ca/ca.pem, $(openssl x509 -noout -fingerprint -sha256 -in "$M_STATE/gcp/ca/ca.pem")"
 fi
 
@@ -145,6 +147,7 @@ for env in "${ENVS[@]}"; do
     m_files_env "$env"
     gcp_env worker
     gcp_pii
+    gcp_web_search worker "$env"
     extra
   } >"$M_STATE/envs/worker-$env.env"
   has_env mocks "$env" && {

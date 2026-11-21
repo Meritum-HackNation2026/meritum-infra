@@ -74,3 +74,11 @@ resource "google_project_iam_member" "service_usage" {
   role     = "roles/serviceusage.serviceUsageConsumer"
   member   = "serviceAccount:${each.key}@${var.project_id}.iam.gserviceaccount.com"
 }
+
+# Live web search (infra#42): the worker calls :search on the meritum-live-search
+# serving config of gcp/search (infra#16).
+resource "google_project_iam_member" "discoveryengine_viewer" {
+  project = var.project_id
+  role    = "roles/discoveryengine.viewer"
+  member  = "serviceAccount:meritum-worker@${var.project_id}.iam.gserviceaccount.com"
+}

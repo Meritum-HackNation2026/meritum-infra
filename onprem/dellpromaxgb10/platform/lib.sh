@@ -64,5 +64,12 @@ M_PII_LOCATION="${M_PII_LOCATION:-europe-central2}"
 m_pii_env() {
   printf 'MERITUM_PII_GATE=sdp\nMERITUM_PII_PROJECT=%s\nMERITUM_PII_LOCATION=%s\n' "$1" "$M_PII_LOCATION"
 }
+# Live web search (infra#42): Vertex AI Search app of gcp/search (infra#16), dev worker only.
+# $1 app, $2 env, $3 project number; the worker reads the credentials from ADC (wif.sh).
+M_WEB_SEARCH_ENGINE="meritum-live-search"
+m_web_search_env() {
+  [ "$1-$2" = worker-dev ] || return 0
+  printf 'MERITUM_WEB_SEARCH_PROVIDER=vertex_search\nMERITUM_WEB_SEARCH_PROJECT=%s\nMERITUM_WEB_SEARCH_ENGINE=%s\n' "$3" "$M_WEB_SEARCH_ENGINE"
+}
 m_host() { if [ "$1" = prd ]; then printf 'meritum.%s' "$M_DOMAIN"; else printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; fi; }
 m_mock_host() { if [ "$2" = prd ]; then printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; else printf 'meritum-%s-%s.%s' "$1" "$2" "$M_DOMAIN"; fi; }
