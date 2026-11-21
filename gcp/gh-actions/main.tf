@@ -1,4 +1,8 @@
 terraform {
+  backend "gcs" {
+    bucket = "agro-prj-sandbox-sd-2332277-meritum-tfstate"
+    prefix = "gh-actions"
+  }
   required_version = ">= 1.6"
   required_providers {
     google = {
