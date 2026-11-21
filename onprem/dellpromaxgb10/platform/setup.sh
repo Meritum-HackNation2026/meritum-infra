@@ -7,12 +7,13 @@
 #             database `meritum`, one role + schema per app and env:
 #               meritum_api_dev    -> api_dev       meritum_api_prd    -> api_prd
 #               meritum_worker_dev -> worker_dev    meritum_worker_prd -> worker_prd
-#               meritum_mocks_dev  -> mocks_dev     meritum_mocks_prd  -> mocks_prd
-#             (worker_<env> also holds the DBOS system tables of that env)
+#                                                 meritum_mocks_prd  -> mocks_prd
+#             (worker_<env> also holds the DBOS system tables of that env;
+#             mocks deploy from main only, so they have no dev env)
 #   env files ~/meritum/envs/<app>-<env>.env (mode 600), read by the app deploys
 #   gateway   meritum-gateway (nginx) on 172.17.0.1:18095, reachable by cloudflared only
 #   routes    meritum.gburek.app -> meritum-web-prd, meritum-dev.gburek.app -> meritum-web-dev,
-#             meritum-<platform>[-dev].gburek.app -> meritum-mocks-<env> (nginx.conf)
+#             meritum-<platform>.gburek.app -> meritum-mocks-prd (nginx.conf)
 #             (Cloudflare tunnel ingress + DNS; skipped with a warning without a token)
 #
 # Env: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_TUNNEL_ID, CLOUDFLARE_ZONE_ID.
@@ -25,6 +26,8 @@ here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 APPS=(api worker mocks)
 ENVS=(dev prd)
+# Mocks deploy from main only: no mocks dev role, schema, env file or hostnames.
+has_env() { [ "$1" != mocks ] || [ "$2" = prd ]; }
 
 mkdir -p "$M_STATE/envs" "$M_STATE/gateway"
 chmod 700 "$M_STATE"
@@ -36,7 +39,7 @@ touch "$M_STATE/db.env"
 gen_password() { head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 32; }
 pw_var() { printf '%s_PASSWORD' "$(printf '%s_%s' "$1" "$2" | tr '[:lower:]' '[:upper:]')"; }
 vars=(POSTGRES_PASSWORD)
-for app in "${APPS[@]}"; do for env in "${ENVS[@]}"; do vars+=("$(pw_var "$app" "$env")"); done; done
+for app in "${APPS[@]}"; do for env in "${ENVS[@]}"; do has_env "$app" "$env" && vars+=("$(pw_var "$app" "$env")"); done; done
 for var in "${vars[@]}"; do
   grep -q "^$var=" "$M_STATE/db.env" || { printf '%s=%s\n' "$var" "$(gen_password)" >>"$M_STATE/db.env"; m_log "generated $var"; }
 done
@@ -86,6 +89,7 @@ done
   echo "CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public;"
   cat "$here/postgres/polish-fts.sql"
   for app in "${APPS[@]}"; do for env in "${ENVS[@]}"; do
+    has_env "$app" "$env" || continue
     role=$(m_role "$app" "$env"); schema=$(m_schema "$app" "$env"); var=$(pw_var "$app" "$env")
     echo "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$role') THEN CREATE ROLE $role; END IF; END \$\$;"
     echo "ALTER ROLE $role WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '${!var}';"
@@ -94,7 +98,7 @@ done
     echo "ALTER ROLE $role SET search_path = $schema, public;"
   done; done
 } | docker exec -i -e PGOPTIONS="-c client_min_messages=warning" "$M_POSTGRES" psql -q -v ON_ERROR_STOP=1 -U meritum -d meritum >/dev/null
-m_log "roles, schemas and Polish FTS ready: ${APPS[*]} x ${ENVS[*]}"
+m_log "roles, schemas and Polish FTS ready: ${APPS[*]} x ${ENVS[*]} (mocks: prd only)"
 
 # --- env files for the app deploys -------------------------------------------------
 gateway_subnet=$(docker network inspect "$M_NETWORK" -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' | awk '{print $1}')
@@ -118,7 +122,7 @@ for env in "${ENVS[@]}"; do
     printf 'MERITUM_API_ROLE=%s\n' "$(m_role api "$env")"
     extra
   } >"$M_STATE/envs/worker-$env.env"
-  {
+  has_env mocks "$env" && {
     printf 'MERITUM_ENV=%s\n' "$env"
     printf 'DATABASE_URL=%s\n' "$(url mocks "$env")"
   } >"$M_STATE/envs/mocks-$env.env"
@@ -147,7 +151,7 @@ else
   . "$here/cloudflare.sh"
   for env in "${ENVS[@]}"; do
     hosts=("$(m_host "$env")")
-    for p in "${M_MOCK_PLATFORMS[@]}"; do hosts+=("$(m_mock_host "$p" "$env")"); done
+    if has_env mocks "$env"; then for p in "${M_MOCK_PLATFORMS[@]}"; do hosts+=("$(m_mock_host "$p" "$env")"); done; fi
     for host in "${hosts[@]}"; do
       cf_ingress_ensure "$host" "http://$M_GATEWAY_BIND"
       cf_dns_ensure "$host"
