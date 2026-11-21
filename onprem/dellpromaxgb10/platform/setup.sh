@@ -6,10 +6,12 @@
 #   postgres  meritum-postgres, database `meritum`, one role + schema per app and env:
 #               meritum_api_dev    -> api_dev       meritum_api_prd    -> api_prd
 #               meritum_worker_dev -> worker_dev    meritum_worker_prd -> worker_prd
+#               meritum_mocks_dev  -> mocks_dev     meritum_mocks_prd  -> mocks_prd
 #             (worker_<env> also holds the DBOS system tables of that env)
 #   env files ~/meritum/envs/<app>-<env>.env (mode 600), read by the app deploys
 #   gateway   meritum-gateway (nginx) on 172.17.0.1:18095, reachable by cloudflared only
-#   routes    meritum.gburek.app -> meritum-web-prd, meritum-dev.gburek.app -> meritum-web-dev
+#   routes    meritum.gburek.app -> meritum-web-prd, meritum-dev.gburek.app -> meritum-web-dev,
+#             meritum-<platform>[-dev].gburek.app -> meritum-mocks-<env> (nginx.conf)
 #             (Cloudflare tunnel ingress + DNS; skipped with a warning without a token)
 #
 # Env: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_TUNNEL_ID, CLOUDFLARE_ZONE_ID.
@@ -20,7 +22,7 @@ here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=onprem/dellpromaxgb10/platform/lib.sh
 . "$here/lib.sh"
 
-APPS=(api worker)
+APPS=(api worker mocks)
 ENVS=(dev prd)
 
 mkdir -p "$M_STATE/envs" "$M_STATE/gateway"
@@ -99,6 +101,10 @@ for env in "${ENVS[@]}"; do
     printf 'MERITUM_API_ROLE=%s\n' "$(m_role api "$env")"
     extra
   } >"$M_STATE/envs/worker-$env.env"
+  {
+    printf 'MERITUM_ENV=%s\n' "$env"
+    printf 'DATABASE_URL=%s\n' "$(url mocks "$env")"
+  } >"$M_STATE/envs/mocks-$env.env"
 done
 m_log "env files written to $M_STATE/envs"
 
@@ -123,9 +129,10 @@ else
   # shellcheck source=onprem/dellpromaxgb10/platform/cloudflare.sh
   . "$here/cloudflare.sh"
   for env in "${ENVS[@]}"; do
-    host=$(m_host "$env")
-    cf_ingress_ensure "$host" "http://$M_GATEWAY_BIND"
-    cf_dns_ensure "$host"
+    for host in "$(m_host "$env")" $(for p in "${M_MOCK_PLATFORMS[@]}"; do m_mock_host "$p" "$env"; done); do
+      cf_ingress_ensure "$host" "http://$M_GATEWAY_BIND"
+      cf_dns_ensure "$host"
+    done
   done
 fi
 m_log "platform ready"
