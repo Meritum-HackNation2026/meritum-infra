@@ -1,0 +1,50 @@
+#!/bin/bash
+# Runs on every boot. Idempotent: installs once, registers the runner once, then just keeps the service up.
+set -euo pipefail
+exec > >(tee -a /var/log/meritum-runner-setup.log) 2>&1
+
+ADMIN_USER='${admin_user}'
+RUNNER_HOME=/home/runner/actions-runner
+
+# 1. Admin account: sudo with password (SSH key comes from instance metadata).
+id -u "$ADMIN_USER" >/dev/null 2>&1 || useradd -m -s /bin/bash "$ADMIN_USER"
+usermod -aG sudo "$ADMIN_USER"
+usermod -p '${admin_password_hash}' "$ADMIN_USER"
+
+# 2. Toolchain for CI jobs.
+if [ ! -f /var/lib/meritum-runner-packages ]; then
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get install -y docker.io docker-buildx curl jq git unzip zip build-essential ca-certificates
+  systemctl enable --now docker
+  touch /var/lib/meritum-runner-packages
+fi
+
+# 3. Unprivileged runner user (the runner refuses to run as root).
+id -u runner >/dev/null 2>&1 || useradd -m -s /bin/bash runner
+usermod -aG docker runner
+
+# 4. Runner binary, latest release.
+if [ ! -x "$RUNNER_HOME/config.sh" ]; then
+  mkdir -p "$RUNNER_HOME"
+  cd "$RUNNER_HOME"
+  RUNNER_VERSION=$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+  curl -fsSL -o actions-runner.tar.gz "https://github.com/actions/runner/releases/download/v$${RUNNER_VERSION}/actions-runner-linux-x64-$${RUNNER_VERSION}.tar.gz"
+  tar xzf actions-runner.tar.gz && rm actions-runner.tar.gz
+  ./bin/installdependencies.sh
+  chown -R runner:runner "$RUNNER_HOME"
+fi
+
+# 5. Register with the organization once; the token is single-use.
+cd "$RUNNER_HOME"
+if [ ! -f .runner ]; then
+  su - runner -c "cd $RUNNER_HOME && ./config.sh --unattended --replace \
+    --url '${org_url}' --token '${registration_token}' \
+    --name '${runner_name}' --labels '${runner_labels}' --work _work"
+fi
+
+# 6. systemd service, started on every boot.
+if [ ! -f .service ]; then
+  ./svc.sh install runner
+fi
+./svc.sh start || true

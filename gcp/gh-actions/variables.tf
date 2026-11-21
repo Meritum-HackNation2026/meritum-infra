@@ -1,0 +1,64 @@
+variable "project_id" {
+  type        = string
+  description = "GCP project that hosts the runners."
+}
+
+variable "region" {
+  type    = string
+  default = "europe-central2"
+}
+
+variable "zone" {
+  type    = string
+  default = "europe-central2-a"
+}
+
+variable "gh_org" {
+  type        = string
+  description = "GitHub organization the runners register to."
+  default     = "Meritum-HackNation2026"
+}
+
+variable "gh_registration_token" {
+  type        = string
+  sensitive   = true
+  description = "Org runner registration token (POST /orgs/{org}/actions/runners/registration-token, valid 1 h). scripts/apply.sh fetches it."
+}
+
+variable "runner_count" {
+  type    = number
+  default = 3
+}
+
+variable "machine_type" {
+  type    = string
+  default = "e2-standard-4"
+}
+
+variable "disk_size_gb" {
+  type    = number
+  default = 100
+}
+
+variable "runner_labels" {
+  type        = string
+  description = "Extra labels; GitHub adds self-hosted, Linux and X64 itself."
+  default     = "gcp,meritum"
+}
+
+variable "admin_user" {
+  type        = string
+  description = "Login for SSH and sudo on every runner VM."
+  default     = "meritum"
+}
+
+variable "admin_password_hash" {
+  type        = string
+  sensitive   = true
+  description = "SHA-512 crypt hash (openssl passwd -6) of the admin password, for sudo and the serial console."
+}
+
+variable "ssh_public_key" {
+  type        = string
+  description = "OpenSSH public key for admin_user."
+}
