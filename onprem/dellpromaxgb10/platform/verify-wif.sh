@@ -28,8 +28,8 @@ run() {
   docker run --rm "${mounts[@]}" \
     -e GOOGLE_CLOUD_PROJECT="$project" \
     -e GOOGLE_APPLICATION_CREDENTIALS="$(sed -n 's/^GOOGLE_APPLICATION_CREDENTIALS=//p' "$M_STATE/envs/$1-prd.env")" \
-    -e BUCKET="$bucket" -e OBJECT="$object" "$image" sh -c \
-    "pip install -q --root-user-action=ignore --disable-pip-version-check 'google-auth>=2.39' google-cloud-storage >/dev/null && python -c \"$2\""
+    -e BUCKET="$bucket" -e OBJECT="$object" -e CODE="$2" "$image" sh -c \
+    'pip install -q --root-user-action=ignore --disable-pip-version-check "google-auth>=2.39" google-cloud-storage >/dev/null && python -c "$CODE"'
 }
 
 run api "
@@ -46,6 +46,6 @@ storage.Client().bucket(os.environ['BUCKET']).blob(os.environ['OBJECT']).delete(
 print('worker deleted it')
 " || fail "worker could not delete gs://$bucket/$object"
 
-! grep -rlq '"type": *"service_account"' "$M_STATE" || fail "service account key in $M_STATE"
+grep -rlq '"type": *"service_account"' "$M_STATE" && fail "service account key in $M_STATE"
 for sa in "${M_WIF_ACCOUNTS[@]}"; do grep -q '"type": "external_account"' "$M_STATE/gcp/$sa/credentials.json" || fail "$sa"; done
 echo "workload identity: ok"

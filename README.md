@@ -159,7 +159,7 @@ Wybraliśmy certyfikat serwera zamiast tokenu OIDC z GitHub Actions. Token OIDC 
 
 ### Rotacja
 
-- Certyfikaty usług: `setup.sh` wystawia nowy 30 dni przed wygaśnięciem, tym samym kluczem CA, bez zmian w Terraform. Workflow Platform trzeba więc uruchomić co najmniej raz na 11 miesięcy. Po wymianie trzeba zrestartować kontenery backendu i workera (najprościej ich deployem), bo biblioteka może trzymać stary certyfikat w pamięci.
+- Certyfikaty usług: `setup.sh` wystawia nowy 30 dni przed wygaśnięciem, z nowym kluczem prywatnym, podpisany tym samym CA, bez zmian w Terraform. Workflow Platform trzeba więc uruchomić co najmniej raz na 11 miesięcy. Po wymianie trzeba zrestartować kontenery backendu i workera (najprościej ich deployem), bo biblioteka może trzymać stary certyfikat w pamięci.
 - CA (raz na 5 lat albo po wycieku): `rm -rf ~meritum-runner/meritum/gcp` na serwerze, workflow Platform, nowy `trust_anchor_pem` w `terraform.tfvars` i `apply`, potem restart kontenerów backendu i workera. Między krokiem 2 a `apply` kontenery nie mają dostępu.
 
 ### Cofnięcie dostępu

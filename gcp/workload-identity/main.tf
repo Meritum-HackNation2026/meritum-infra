@@ -15,7 +15,7 @@ provider "google" {
 data "google_project" "this" {}
 
 resource "google_iam_workload_identity_pool" "onprem" {
-  workload_identity_pool_id = var.pool_id
+  workload_identity_pool_id = "meritum-onprem" # M_WIF_POOL in wif.sh
   display_name              = "Meritum on-prem"
   description               = "Backend and worker containers on the team server dellpromaxgb10"
 }
@@ -24,7 +24,7 @@ resource "google_iam_workload_identity_pool" "onprem" {
 # its own CA, so no service account key and no token from an outside issuer.
 resource "google_iam_workload_identity_pool_provider" "server" {
   workload_identity_pool_id          = google_iam_workload_identity_pool.onprem.workload_identity_pool_id
-  workload_identity_pool_provider_id = var.provider_id
+  workload_identity_pool_provider_id = "dellpromaxgb10" # M_WIF_PROVIDER in wif.sh
   display_name                       = "dellpromaxgb10"
   description                        = "Service certificates signed by the CA of dellpromaxgb10"
   disabled                           = var.disabled

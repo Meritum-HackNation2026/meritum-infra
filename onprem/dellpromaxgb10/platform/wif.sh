@@ -42,7 +42,8 @@ m_wif_issue() {
       && openssl x509 -noout -checkend $((M_WIF_RENEW_DAYS * 86400)) -in "$d/cert.pem" >/dev/null \
       && openssl verify -CAfile "$dir/ca/ca.pem" "$d/cert.pem" >/dev/null 2>&1; }; then
       m_log "issuing the workload certificate $sa"
-      [ -s "$d/key.pem" ] || openssl ecparam -name prime256v1 -genkey -noout -out "$d/key.pem"
+      # A new key with every certificate, so a renewal also rotates the key.
+      (umask 077; openssl ecparam -name prime256v1 -genkey -noout -out "$d/key.pem")
       openssl req -new -key "$d/key.pem" -subj "/CN=$sa" 2>/dev/null \
         | openssl x509 -req -sha256 -days "$M_WIF_CERT_DAYS" -CA "$dir/ca/ca.pem" -CAkey "$dir/ca/ca.key" \
           -set_serial "0x$(openssl rand -hex 16)" \
@@ -84,12 +85,13 @@ JSON
 # m_wif_env DIR APP PROJECT_ID: env file lines of APP (api | worker), its
 # credentials, project and the -v mounts of its own account directories.
 m_wif_env() {
-  local dir=$1 app=$2 project=$3 sa mounts=()
-  local own=(meritum-backend)
-  [ "$app" = worker ] && own=(meritum-worker meritum-speech)
-  for sa in "${own[@]}"; do mounts+=("$dir/$sa:$M_WIF_MOUNT/$sa:ro"); done
+  local dir=$1 app=$2 project=$3 sa mounts=() own=(meritum-backend)
   printf 'GOOGLE_CLOUD_PROJECT=%s\n' "$project"
+  if [ "$app" = worker ]; then
+    own=(meritum-worker meritum-speech)
+    printf 'MERITUM_SPEECH_CREDENTIALS=%s/meritum-speech/credentials.json\n' "$M_WIF_MOUNT"
+  fi
+  for sa in "${own[@]}"; do mounts+=("$dir/$sa:$M_WIF_MOUNT/$sa:ro"); done
   printf 'GOOGLE_APPLICATION_CREDENTIALS=%s/%s/credentials.json\n' "$M_WIF_MOUNT" "${own[0]}"
-  [ "$app" = worker ] && printf 'MERITUM_SPEECH_CREDENTIALS=%s/meritum-speech/credentials.json\n' "$M_WIF_MOUNT"
   printf 'MERITUM_GCP_MOUNTS=%s\n' "${mounts[*]}"
 }

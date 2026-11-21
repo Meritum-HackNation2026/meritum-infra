@@ -18,16 +18,6 @@ variable "service_accounts" {
   description = "Account IDs from gcp/storage; each is also the CN of its certificate."
 }
 
-variable "pool_id" {
-  type    = string
-  default = "meritum-onprem"
-}
-
-variable "provider_id" {
-  type    = string
-  default = "dellpromaxgb10"
-}
-
 variable "disabled" {
   type        = bool
   default     = false
