@@ -7,6 +7,7 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
+      # Issue #16: 6.x, at least 6.50.0 (Discovery Engine resources).
       version = "~> 6.50"
     }
   }
