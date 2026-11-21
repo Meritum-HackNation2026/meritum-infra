@@ -1,7 +1,7 @@
 name: Platform (dellpromaxgb10)
 
-# Shared Meritum platform on dellpromaxgb10: network, PostgreSQL (role + schema
-# per app and env), env files for the app deploys, meritum-gateway and the
+# Shared Meritum platform on dellpromaxgb10: network, PostgreSQL (schema app_<env>
+# and database meritum_dbos_<env> per env), env files for the app deploys, meritum-gateway and the
 # Cloudflare tunnel routes of meritum.gburek.app and meritum-dev.gburek.app.
 # Idempotent. Runs on a change to the platform files on main, or by hand.
 on:
