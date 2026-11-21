@@ -15,7 +15,6 @@ M_DOMAIN="${M_DOMAIN:-gburek.app}"
 M_STATE="${M_STATE:-$HOME/meritum}"
 M_NETWORK="meritum"
 M_POSTGRES="meritum-postgres"
-M_POSTGRES_IMAGE="pgvector/pgvector:0.8.7-pg18-trixie"
 M_GATEWAY="meritum-gateway"
 # docker0 address: cloudflared (default bridge) reaches it, the LAN does not.
 # 18080/18081 are TuttiTrip's, 18090 is ExactDocs'.

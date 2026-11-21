@@ -3,7 +3,8 @@
 # meritum-runner (workflow .github/workflows/platform.yml, or by hand).
 #
 #   network   meritum (private Docker network of every Meritum container)
-#   postgres  meritum-postgres, database `meritum`, one role + schema per app and env:
+#   postgres  meritum-postgres (image postgres/Dockerfile: pgvector + Polish FTS `public.polish`),
+#             database `meritum`, one role + schema per app and env:
 #               meritum_api_dev    -> api_dev       meritum_api_prd    -> api_prd
 #               meritum_worker_dev -> worker_dev    meritum_worker_prd -> worker_prd
 #               meritum_mocks_dev  -> mocks_dev     meritum_mocks_prd  -> mocks_prd
@@ -46,6 +47,21 @@ done
 docker network inspect "$M_NETWORK" >/dev/null 2>&1 \
   || docker network create --label meritum.managed=true "$M_NETWORK" >/dev/null
 
+# Image tagged by the hash of its inputs; a change rebuilds it and replaces the
+# container on the same data volume, after a full dump to $M_STATE/backups.
+pg_hash=$(cat "$here"/postgres/Dockerfile "$here"/postgres/polish.stop | sha256sum | cut -c1-12)
+M_POSTGRES_IMAGE="meritum-postgres:$pg_hash"
+docker image inspect "$M_POSTGRES_IMAGE" >/dev/null 2>&1 \
+  || docker build -q -t "$M_POSTGRES_IMAGE" --label meritum.managed=true "$here/postgres" >/dev/null
+current=$(docker inspect -f '{{.Config.Image}}' "$M_POSTGRES" 2>/dev/null || true)
+if [ -n "$current" ] && [ "$current" != "$M_POSTGRES_IMAGE" ]; then
+  mkdir -p "$M_STATE/backups"
+  dump="$M_STATE/backups/pg_dumpall-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
+  docker exec "$M_POSTGRES" pg_dumpall -U meritum | gzip >"$dump"
+  m_log "dumped the database to $dump; replacing $M_POSTGRES ($current -> $M_POSTGRES_IMAGE)"
+  docker stop -t 30 "$M_POSTGRES" >/dev/null
+  docker rm "$M_POSTGRES" >/dev/null
+fi
 if ! docker container inspect "$M_POSTGRES" >/dev/null 2>&1; then
   m_log "starting $M_POSTGRES"
   docker run -d --name "$M_POSTGRES" --network "$M_NETWORK" --restart unless-stopped \
@@ -68,6 +84,7 @@ done
   echo "REVOKE CREATE ON SCHEMA public FROM PUBLIC;"
   echo "CREATE EXTENSION IF NOT EXISTS vector SCHEMA public;"
   echo "CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public;"
+  cat "$here/postgres/polish-fts.sql"
   for app in "${APPS[@]}"; do for env in "${ENVS[@]}"; do
     role=$(m_role "$app" "$env"); schema=$(m_schema "$app" "$env"); var=$(pw_var "$app" "$env")
     echo "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$role') THEN CREATE ROLE $role; END IF; END \$\$;"
@@ -77,7 +94,7 @@ done
     echo "ALTER ROLE $role SET search_path = $schema, public;"
   done; done
 } | docker exec -i -e PGOPTIONS="-c client_min_messages=warning" "$M_POSTGRES" psql -q -v ON_ERROR_STOP=1 -U meritum -d meritum >/dev/null
-m_log "roles and schemas ready: ${APPS[*]} x ${ENVS[*]}"
+m_log "roles, schemas and Polish FTS ready: ${APPS[*]} x ${ENVS[*]}"
 
 # --- env files for the app deploys -------------------------------------------------
 gateway_subnet=$(docker network inspect "$M_NETWORK" -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' | awk '{print $1}')
