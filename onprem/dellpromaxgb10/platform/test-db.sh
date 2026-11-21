@@ -22,8 +22,12 @@ for i in $(seq 60); do
   sleep 1
 done
 
-for app in api worker; do for env in dev prd; do printf -v "$(pw_var "$app" "$env")" '%s' "pw-$app-$env"; done; done
-printf -v "$(pw_var mocks prd)" %s pw-mocks-prd
+# Passwords as setup.sh keeps them: generated once into db.env, loaded on every run.
+state=$(mktemp -d)
+trap 'docker rm -f "$name" >/dev/null 2>&1 || true; rm -rf "$state"' EXIT
+pw_vars=(MOCKS_PRD_PASSWORD)
+for app in api worker; do for env in dev prd; do pw_vars+=("$(pw_var "$app" "$env")"); done; done
+m_db_passwords "$state/db.env" "${pw_vars[@]}" 2>/dev/null
 apply() {
   m_db_sql "dev prd" "prd" | docker exec -i -e PGOPTIONS="-c client_min_messages=warning" "$name" \
     psql -q -v ON_ERROR_STOP=1 -U meritum -d meritum >/dev/null
@@ -60,8 +64,11 @@ check "api dev connects to meritum_dbos_dev" "$(as api dev meritum_dbos_dev "SEL
 denied "api dev cannot connect to meritum_dbos_prd" "$(as api dev meritum_dbos_prd "SELECT 1")"
 denied "worker dev cannot connect to meritum_dbos_prd" "$(as worker dev meritum_dbos_prd "SELECT 1")"
 
+first_passwords=$(cat "$state/db.env")
+m_db_passwords "$state/db.env" "${pw_vars[@]}" 2>/dev/null
+check "second run keeps the generated passwords" "$(cat "$state/db.env")" "$first_passwords"
 apply
 check "second run keeps data" "$(as api dev app "SELECT v FROM t")" b
 check "second run keeps the DBOS schema" "$(as worker dev meritum_dbos_dev "SELECT count(*) FROM pg_namespace WHERE nspname = 'dbos'")" 1
-check "second run keeps passwords" "$(as api prd app "SELECT current_user")" meritum_api_prd
+check "api prd logs in after the second run" "$(as api prd app "SELECT current_user")" meritum_api_prd
 exit "$fail"

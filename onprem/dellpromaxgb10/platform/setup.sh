@@ -35,15 +35,9 @@ exec 9>"$M_STATE/deploy.lock"
 flock 9
 
 umask 077
-touch "$M_STATE/db.env"
-gen_password() { head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 32; }
 vars=(POSTGRES_PASSWORD)
 for app in "${APPS[@]}"; do for env in "${ENVS[@]}"; do has_env "$app" "$env" && vars+=("$(pw_var "$app" "$env")"); done; done
-for var in "${vars[@]}"; do
-  grep -q "^$var=" "$M_STATE/db.env" || { printf '%s=%s\n' "$var" "$(gen_password)" >>"$M_STATE/db.env"; m_log "generated $var"; }
-done
-# shellcheck disable=SC1091
-. "$M_STATE/db.env"
+m_db_passwords "$M_STATE/db.env" "${vars[@]}"
 
 # --- network and database --------------------------------------------------------
 docker network inspect "$M_NETWORK" >/dev/null 2>&1 \
