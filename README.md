@@ -20,10 +20,10 @@ jobs:
 | --- | --- |
 | Sieć Dockera | `meritum` |
 | PostgreSQL | kontener `meritum-postgres` (pgvector, PG 18), baza `meritum`, wolumen `meritum-postgres-data` |
-| Role i schematy | `meritum_api_dev` → `api_dev`, `meritum_api_prd` → `api_prd`, `meritum_worker_dev` → `worker_dev`, `meritum_worker_prd` → `worker_prd`; każda rola ma tylko swój schemat (plus odczyt `public`, gdzie są pgvector i pg_trgm) |
-| Pliki env | `~meritum-runner/meritum/envs/{api,worker}-{dev,prd}.env` (600), czytane przez deploye aplikacji; hasła w `~/meritum/db.env`, wspólne sekrety aplikacji opcjonalnie w `~/meritum/app.env` |
-| Gateway | `meritum-gateway` (nginx) na `172.17.0.1:18095`: `meritum.gburek.app` → `meritum-web-prd`, `meritum-dev.gburek.app` → `meritum-web-dev` |
-| Cloudflare | reguły tunelu i rekordy DNS dla obu adresów (sekret organizacji `CLOUDFLARE_API_TOKEN`, zmienne `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_TUNNEL_ID`, `CLOUDFLARE_ZONE_ID`) |
+| Role i schematy | `meritum_<app>_<env>` → `<app>_<env>` dla `api`, `worker` i `mocks` w `dev` i `prd`; każda rola ma tylko swój schemat (plus odczyt `public`, gdzie są pgvector i pg_trgm) |
+| Pliki env | `~meritum-runner/meritum/envs/{api,worker,mocks}-{dev,prd}.env` (600), czytane przez deploye aplikacji; hasła w `~/meritum/db.env`, wspólne sekrety aplikacji opcjonalnie w `~/meritum/app.env` |
+| Gateway | `meritum-gateway` (nginx) na `172.17.0.1:18095`: `meritum.gburek.app` → `meritum-web-prd`, `meritum-dev.gburek.app` → `meritum-web-dev`, `meritum-<platforma>.gburek.app` → `meritum-mocks-prd`, `meritum-<platforma>-dev.gburek.app` → `meritum-mocks-dev` (platformy: x, facebook, instagram, reddit, tiktok) |
+| Cloudflare | reguły tunelu i rekordy DNS dla wszystkich 12 adresów (sekret repo `CLOUDFLARE_API_TOKEN`: token konta `meritum-platform-deploy`, Tunnel Edit i DNS Edit na gburek.app, wygasa 2026-12-21; zmienne repo `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_TUNNEL_ID`, `CLOUDFLARE_ZONE_ID`) |
 
 Porty 18080 i 18081 należą do TuttiTrip, 18090 do ExactDocs. Skrypt dotyka tylko zasobów z prefiksem `meritum` i hostów `meritum(-*).gburek.app`.
 
