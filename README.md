@@ -91,13 +91,13 @@ Koszt: ok. 0,135 USD/h za maszynę, czyli ok. 0,67 USD/h za pięć, dopóki dzia
 
 ## Stan Terraform na GCP
 
-Stan modułów z `gcp/` leży w prywatnym buckecie `agro-prj-sandbox-sd-2332277-meritum-tfstate` (`europe-central2`, wersjonowanie obiektów, publiczny dostęp zablokowany), każdy moduł pod własnym prefiksem: `gh-actions`, `storage`, `state`. Bucket zakłada moduł `gcp/state/` i trzyma w nim także własny stan. Backend GCS blokuje stan na czas `plan` i `apply`, więc dwie osoby nie nadpiszą go sobie nawzajem.
+Stan modułów z `gcp/` leży w prywatnym buckecie `agro-prj-sandbox-sd-2332277-meritum-tfstate` (`europe-central2`, wersjonowanie obiektów, publiczny dostęp zablokowany), każdy moduł pod własnym prefiksem: `gh-actions`, `storage`, `state`. Bucket zakłada moduł `gcp/state/` i trzyma w nim także własny stan. Backend GCS blokuje stan na czas `plan` i `apply`, więc dwie osoby nie nadpiszą go sobie nawzajem. Stan `gh-actions` zawiera wrażliwe wartości (hash hasła admina, klucz SSH, token rejestracji runnera), a czyta go każdy z dostępem do odczytu obiektów w projekcie.
 
 Druga osoba potrzebuje tylko dostępu do projektu: `gcloud auth application-default login`, potem w czystym klonie `terraform -chdir=gcp/<moduł> init` i `plan`. Lokalnych plików `terraform.tfstate` nie ma i nie trzeba ich przekazywać.
 
 Poprzednią wersję stanu przywraca się z historii obiektu: `gcloud storage ls -a gs://agro-prj-sandbox-sd-2332277-meritum-tfstate/<prefiks>/default.tfstate`, potem `gcloud storage cp` wybranej generacji na `default.tfstate`.
 
-Bloki `backend "gcs"` nie przyjmują zmiennych, więc nazwa bucketu jest wpisana w każdy moduł; `project_id` w `gcp/state` musi być `agro-prj-sandbox-sd-2332277` (pilnuje tego test modułu).
+Bloki `backend "gcs"` nie przyjmują zmiennych, więc nazwa bucketu jest wpisana w każdy moduł; `project_id` w `gcp/state` musi być `agro-prj-sandbox-sd-2332277` (test modułu sprawdza, że dla tego projektu nazwa wychodzi taka jak w blokach backend; bloków w innych modułach nie czyta).
 
 CI (`.github/workflows/terraform.yml`) uruchamia dla każdego modułu w `gcp/` `terraform fmt -check`, `terraform validate` i `terraform test` (plan na atrapie dostawcy, bez poświadczeń, `init -backend=false`).
 
@@ -113,4 +113,4 @@ rm gcp/state/backend_override.tf
 terraform -chdir=gcp/state init -migrate-state   # przenosi stan bucketu do niego samego
 ```
 
-Przeniesienie lokalnego stanu modułu do bucketu (zrobione raz dla `gh-actions` i `storage`): `terraform -chdir=gcp/<moduł> init -migrate-state`, potem `plan` musi pokazać `No changes`. Dopiero wtedy lokalny `terraform.tfstate` można usunąć.
+Przeniesienie lokalnego stanu modułu do bucketu (raz na moduł): `terraform -chdir=gcp/<moduł> init -migrate-state`, potem `plan` musi pokazać `No changes`. Dopiero wtedy lokalny `terraform.tfstate` można usunąć.

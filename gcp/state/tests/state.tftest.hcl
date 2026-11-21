@@ -36,6 +36,6 @@ run "name_matches_backends" {
 
   assert {
     condition     = google_storage_bucket.state.name == "agro-prj-sandbox-sd-2332277-meritum-tfstate"
-    error_message = "Bucket name must match the bucket in every backend \"gcs\" block."
+    error_message = "For the real project the name must equal the bucket literal used in the backend \"gcs\" blocks."
   }
 }
