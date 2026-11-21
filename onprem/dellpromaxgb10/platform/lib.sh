@@ -33,8 +33,12 @@ m_files_volume() { printf 'meritum-files-%s' "$1"; }
 M_APP_UID=999
 # Give volume $1 to the app user, with any local image $2 that has chown.
 m_files_own() { docker run --rm --user 0 --entrypoint chown -v "$1:/files" "$2" "$M_APP_UID:$M_APP_UID" /files; }
-# Env file lines of the files volume, the same for the api and worker of env $1.
-m_files_env() { printf 'MERITUM_FILES_VOLUME=%s\nMERITUM_FILES_DIR=%s\n' "$(m_files_volume "$1")" "$M_FILES_DIR"; }
+# Env file lines of the files volume, the same for the api and worker of env $1. The
+# backend reads MERITUM_FILES_DIR, the worker MERITUM_BLOB_* (core BlobSettings).
+m_files_env() {
+  printf 'MERITUM_FILES_VOLUME=%s\nMERITUM_FILES_DIR=%s\n' "$(m_files_volume "$1")" "$M_FILES_DIR"
+  printf 'MERITUM_BLOB_PROVIDER=filesystem\nMERITUM_BLOB_DIRECTORY=%s\n' "$M_FILES_DIR"
+}
 # LLM stub fixtures inside the worker image, kept on dev for a switch back to the stub, which without them fails every check (worker#68).
 M_LLM_STUB_FIXTURES="/app/features/fixtures/llm_stub_answer.json"
 # LLM of the worker (core#97, D9): Claude Haiku 5.5 via OpenRouter on dev. OPENROUTER_API_KEY
