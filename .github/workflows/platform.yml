@@ -1,7 +1,8 @@
 name: Platform (dellpromaxgb10)
 
 # Shared Meritum platform on dellpromaxgb10: network, PostgreSQL (schema app_<env>
-# and database meritum_dbos_<env> per env), env files for the app deploys, meritum-gateway and the
+# and database meritum_dbos_<env> per env), GCP workload identity certificates and credential
+# files of the api and worker, env files for the app deploys, meritum-gateway and the
 # Cloudflare tunnel routes of meritum.gburek.app and meritum-dev.gburek.app.
 # Idempotent. Runs on a change to the platform files on main, or by hand.
 on:
@@ -26,6 +27,8 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_TUNNEL_ID: ${{ vars.CLOUDFLARE_TUNNEL_ID }}
       CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      MERITUM_GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      MERITUM_GCP_PROJECT_NUMBER: ${{ vars.GCP_PROJECT_NUMBER }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: onprem/dellpromaxgb10/platform/setup.sh

@@ -1,0 +1,7 @@
+project_id = "your-gcp-project"
+# Public CA certificate of the server: ssh dellpromaxgb10 sudo cat ~meritum-runner/meritum/gcp/ca/ca.pem
+trust_anchor_pem = <<-EOT
+  -----BEGIN CERTIFICATE-----
+  ...
+  -----END CERTIFICATE-----
+EOT

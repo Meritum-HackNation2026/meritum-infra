@@ -124,3 +124,46 @@ terraform -chdir=gcp/state init -migrate-state   # przenosi stan bucketu do nieg
 ```
 
 Przeniesienie lokalnego stanu modułu do bucketu (raz na moduł): `terraform -chdir=gcp/<moduł> init -migrate-state`, potem `plan` musi pokazać `No changes`. Dopiero wtedy lokalny `terraform.tfstate` można usunąć.
+
+## Tożsamość GCP backendu i workera (Workload Identity Federation)
+
+Backend i worker działają na dellpromaxgb10, poza GCP, a do bucketu i Vertex AI wchodzą jako konta `meritum-backend`, `meritum-worker` i `meritum-speech` (`gcp/storage/`). Nie mają kluczy JSON kont serwisowych: każdy kontener ma certyfikat X.509 serwera, Google wymienia go przez mTLS na token ważny godzinę, a biblioteka klienta (`google-auth` od 2.39) sama go odnawia.
+
+### Skąd serwer bierze tożsamość: certyfikat X.509
+
+Wybraliśmy certyfikat serwera zamiast tokenu OIDC z GitHub Actions. Token OIDC można pobrać tylko w trakcie joba deployu, a kontener backendu działa dniami i odnawia token GCP co godzinę. Musiałby dostawać świeży token OIDC z workflow uruchamianego według harmonogramu, a ten w GitHub Actions bywa opóźniony o kwadrans i więcej. Certyfikat leży na serwerze i biblioteka czyta go przy każdym odnowieniu.
+
+| Element | Szczegóły |
+| --- | --- |
+| Terraform | `gcp/workload-identity/`: pula `meritum-onprem`, dostawca X.509 `dellpromaxgb10` z CA serwera jako jedynym zaufanym certyfikatem, warunek wpuszczający tylko CN `meritum-backend`, `meritum-worker`, `meritum-speech` i `roles/iam.workloadIdentityUser` dla każdego konta wyłącznie dla certyfikatu o tej samej nazwie |
+| CA serwera | `~meritum-runner/meritum/gcp/ca/` (klucz `ca.key`, 600; nie trafia do kontenerów), ECDSA P-256, ważny 5 lat |
+| Certyfikaty usług | `~meritum-runner/meritum/gcp/<konto>/`: `cert.pem`, `key.pem`, `certificate_config.json` i `credentials.json` (`type: external_account`). Ważne 365 dni (Google przyjmuje najwyżej 390) |
+| Dostarczenie | workflow Platform (`setup.sh`, funkcje w `platform/wif.sh`) tworzy pliki i dopisuje do `api-<env>.env` i `worker-<env>.env`: `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS`, `MERITUM_GCP_MOUNTS`, a workerowi `MERITUM_SPEECH_CREDENTIALS`. Potrzebuje zmiennych repo `GCP_PROJECT_ID` i `GCP_PROJECT_NUMBER`; bez nich pomija ten krok z ostrzeżeniem |
+| Kontener | deploy aplikacji montuje każdy wpis z `MERITUM_GCP_MOUNTS` (`-v <host>:/etc/meritum/gcp/<konto>:ro`). Backend dostaje tylko katalog `meritum-backend`, worker `meritum-worker` i `meritum-speech`, więc backend nie podszyje się pod workera |
+
+### Wdrożenie
+
+1. Zmienne repo (raz): `gh variable set GCP_PROJECT_ID -b <projekt>` i `gh variable set GCP_PROJECT_NUMBER -b "$(gcloud projects describe <projekt> --format='value(projectNumber)')"`.
+2. Workflow Platform (scalenie na `main` albo Run workflow) zakłada CA i certyfikaty. W logu jest odcisk SHA-256 CA.
+3. Terraform, ręcznie (CI robi tylko `fmt`, `validate` i `terraform test` na atrapie dostawcy):
+
+   ```bash
+   cp gcp/workload-identity/terraform.tfvars.example gcp/workload-identity/terraform.tfvars
+   # project_id i trust_anchor_pem: publiczny certyfikat CA, ssh dellpromaxgb10 sudo cat ~meritum-runner/meritum/gcp/ca/ca.pem
+   terraform -chdir=gcp/workload-identity init
+   terraform -chdir=gcp/workload-identity plan -out=wif.tfplan
+   terraform -chdir=gcp/workload-identity apply wif.tfplan
+   ```
+
+4. Sprawdzenie na serwerze, poza CI: `sudo -iu meritum-runner <repo>/onprem/dellpromaxgb10/platform/verify-wif.sh` zapisuje obiekt testowy jako backend, usuwa go jako worker i sprawdza, że na dysku nie ma klucza konta serwisowego. Test samych plików bez GCP: `platform/test-wif.sh`.
+
+### Rotacja
+
+- Certyfikaty usług: `setup.sh` wystawia nowy 30 dni przed wygaśnięciem, tym samym kluczem CA, bez zmian w Terraform. Workflow Platform trzeba więc uruchomić co najmniej raz na 11 miesięcy. Po wymianie trzeba zrestartować kontenery backendu i workera (najprościej ich deployem), bo biblioteka może trzymać stary certyfikat w pamięci.
+- CA (raz na 5 lat albo po wycieku): `rm -rf ~meritum-runner/meritum/gcp` na serwerze, workflow Platform, nowy `trust_anchor_pem` w `terraform.tfvars` i `apply`, potem restart kontenerów backendu i workera. Między krokiem 2 a `apply` kontenery nie mają dostępu.
+
+### Cofnięcie dostępu
+
+- Cały serwer od razu: `disabled = true` w `terraform.tfvars` i `apply` (albo `gcloud iam workload-identity-pools providers update dellpromaxgb10 --workload-identity-pool=meritum-onprem --location=global --disabled`). Tokeny wydane wcześniej działają do godziny.
+- Jedna usługa: usunięcie jej konta z `service_accounts` w `terraform.tfvars` i `apply` (znika jej `workloadIdentityUser`).
+- Wyciek klucza z serwera: wyłączenie dostawcy, potem rotacja CA jak wyżej.
