@@ -1,0 +1,4 @@
+project_id      = "agro-prj-sandbox-sd-2332277"
+billing_account = "XXXXXX-XXXXXX-XXXXXX" # gcloud billing projects describe <project_id>
+postgres_image  = "europe-central2-docker.pkg.dev/<project_id>/meritum/meritum-postgres:0.8.7-pg18-<commit>"
+# environments  = ["dev", "prd"]
