@@ -68,6 +68,8 @@ jobs:
 3. Grupa runnerów musi istnieć (raz na organizację): `gh api -X POST orgs/Meritum-HackNation2026/actions/runner-groups -f name=meritum-gcp -f visibility=all`.
 4. `scripts/apply.sh plan`, potem `scripts/apply.sh apply`.
 
+Nowa maszyna rejestruje się w grupie `runner_group` przy pierwszym starcie. Runner zarejestrowany wcześniej w innej grupie przenosi się ręcznie: `gh api -X PUT orgs/Meritum-HackNation2026/actions/runner-groups/<id grupy>/runners/<id runnera>` (identyfikatory: `gh api orgs/Meritum-HackNation2026/actions/runner-groups` i `.../actions/runners`).
+
 Skrypt pobiera jednorazowy token rejestracji runnera (ważny 1 h) i przekazuje sekrety z `.env` jako `TF_VAR_*`. Maszyny przy starcie instalują Dockera i runnera, rejestrują się raz i działają jako usługa systemd.
 
 Liczba runnerów: `runner_count` w `gcp/gh-actions/terraform.tfvars` (domyślnie 5 w `variables.tf`). Po zmianie `scripts/apply.sh plan` musi pokazać tylko dodanie maszyn o kolejnych numerach; zmniejszenie usuwa maszyny o najwyższych numerach, a ich runnery trzeba potem usunąć z ustawień organizacji. Nowe maszyny rejestrują się świeżym tokenem z `scripts/apply.sh apply`, istniejących to nie dotyka.
