@@ -26,8 +26,9 @@ variable "gh_registration_token" {
 }
 
 variable "runner_count" {
-  type    = number
-  default = 3
+  type        = number
+  description = "Number of runner VMs, named meritum-gh-runner-1..N. Raising it only adds VMs; lowering it destroys the highest-numbered ones."
+  default     = 5
 }
 
 variable "machine_type" {
@@ -44,6 +45,18 @@ variable "runner_labels" {
   type        = string
   description = "Extra labels; GitHub adds self-hosted, Linux and X64 itself."
   default     = "gcp,meritum"
+}
+
+variable "runner_group" {
+  type        = string
+  description = "Org runner group the runners join (visibility: all repositories). It must exist before apply; the README shows how to create it."
+  default     = "meritum-gcp"
+
+  validation {
+    # Interpolated into a shell command in startup.sh.tftpl.
+    condition     = can(regex("^[A-Za-z0-9._-]+$", var.runner_group))
+    error_message = "runner_group may contain only letters, digits, dot, underscore and hyphen."
+  }
 }
 
 variable "admin_user" {

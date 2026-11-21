@@ -40,7 +40,7 @@ cd "$RUNNER_HOME"
 if [ ! -f .runner ]; then
   su - runner -c "cd $RUNNER_HOME && ./config.sh --unattended --replace \
     --url '${org_url}' --token '${registration_token}' \
-    --name '${runner_name}' --labels '${runner_labels}' --work _work"
+    --name '${runner_name}' --labels '${runner_labels}' --runnergroup '${runner_group}' --work _work"
 fi
 
 # 6. systemd service, started on every boot.

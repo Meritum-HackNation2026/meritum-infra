@@ -53,7 +53,7 @@ Przejście ze starego układu (schematy `api_<env>` i `worker_<env>`, tabele DBO
 
 ## Runnery GitHub Actions na GCP
 
-`gcp/gh-actions/` stawia 3 maszyny e2-standard-4 (Ubuntu 24.04, 100 GB, europe-central2-a) i rejestruje je jako self-hosted runnery organizacji `Meritum-HackNation2026` z etykietami `self-hosted, Linux, X64, gcp, meritum`.
+`gcp/gh-actions/` stawia 5 maszyn e2-standard-4 (`meritum-gh-runner-1..5`; Ubuntu 24.04, 100 GB, europe-central2-a) i rejestruje je jako self-hosted runnery organizacji `Meritum-HackNation2026` z etykietami `self-hosted, Linux, X64, gcp, meritum`. Runnery należą do grupy runnerów organizacji `meritum-gcp` (dostępna dla wszystkich repozytoriów, zmienna `runner_group`).
 
 ```yaml
 jobs:
@@ -65,10 +65,15 @@ jobs:
 
 1. `cp .env.example .env` i uzupełnij (albo weź `.env` od właściciela repo; sekrety są też w Settings → Secrets tego repo).
 2. `gcloud auth application-default login` oraz `gh auth login` z zakresem `admin:org`.
-3. `scripts/apply.sh plan`, potem `scripts/apply.sh apply`.
+3. Grupa runnerów musi istnieć (raz na organizację): `gh api -X POST orgs/Meritum-HackNation2026/actions/runner-groups -f name=meritum-gcp -f visibility=all`.
+4. `scripts/apply.sh plan`, potem `scripts/apply.sh apply`.
+
+Nowa maszyna rejestruje się w grupie `runner_group` przy pierwszym starcie. Runner zarejestrowany wcześniej w innej grupie przenosi się ręcznie: `gh api -X PUT orgs/Meritum-HackNation2026/actions/runner-groups/<id grupy>/runners/<id runnera>` (identyfikatory: `gh api orgs/Meritum-HackNation2026/actions/runner-groups` i `.../actions/runners`).
 
 Skrypt pobiera jednorazowy token rejestracji runnera (ważny 1 h) i przekazuje sekrety z `.env` jako `TF_VAR_*`. Maszyny przy starcie instalują Dockera i runnera, rejestrują się raz i działają jako usługa systemd.
 
+Liczba runnerów: `runner_count`, domyślnie 5 w `gcp/gh-actions/variables.tf`. Wpis `runner_count` w lokalnym `terraform.tfvars` ma pierwszeństwo, więc w kopii sprzed tej zmiany (z `runner_count = 3`) trzeba go usunąć albo poprawić. Po zmianie `scripts/apply.sh plan` musi pokazać tylko dodanie maszyn o kolejnych numerach; zmniejszenie usuwa maszyny o najwyższych numerach, a ich runnery trzeba potem usunąć z ustawień organizacji. Nowe maszyny rejestrują się świeżym tokenem z `scripts/apply.sh apply`, istniejących to nie dotyka.
+
 Dostęp: `ssh -i .ssh/meritum-runner meritum@<ip>` (IP: `terraform -chdir=gcp/gh-actions output runners`). Log instalacji: `/var/log/meritum-runner-setup.log`.
 
-Koszt: ok. 0,40 USD/h za trzy maszyny, dopóki działają. Wyłączenie: `scripts/apply.sh destroy` (runnery trzeba potem usunąć z ustawień organizacji).
+Koszt: ok. 0,135 USD/h za maszynę, czyli ok. 0,67 USD/h za pięć, dopóki działają. Wyłączenie: `scripts/apply.sh destroy` (runnery trzeba potem usunąć z ustawień organizacji).
