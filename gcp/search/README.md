@@ -15,7 +15,7 @@ Data store służy tylko wyszukiwaniu na żywo w chwili sprawdzenia. Wczytywanie
 
 Lista domen nie jest wpisana ręcznie. Moduł czyta `catalog.yaml` z meritum-core (`src/meritum_core/corpus/catalog/catalog.yaml`, core#22) i dla każdej pozycji bez `excluded: true` tworzy wzorzec z jej pola `domain`. Pozycja pod ścieżką innej pozycji (np. `www.gov.pl/web/mswia/regionalny-system-ostrzegania` pod `www.gov.pl/web/mswia`) nie dostaje osobnego wzorca, bo już ją obejmuje wzorzec nadrzędny.
 
-Basic website search przyjmuje najwyżej 50 wzorców. Gdy katalog da ich więcej, warunek na data store zatrzymuje `terraform plan` z komunikatem o limicie. Katalog z core#22 daje dziś 48 wzorców (51 pozycji bez wykluczenia, z czego 3 leżą pod innymi).
+Basic website search przyjmuje najwyżej 50 wzorców. Gdy katalog da ich więcej, warunek na data store zatrzymuje `terraform plan` z komunikatem o limicie. Dlatego wszystkie pozycje pod `www.gov.pl/web/` (ministerstwa i służby na gov.pl) dzielą jeden wzorzec `www.gov.pl/web` (zmienna `shared_prefix`). Wyszukiwarka może wtedy zwrócić stronę innego urzędu z gov.pl, ale adapter w meritum-core i tak przepuszcza tylko adresy z domen katalogu. Katalog z core#149 daje 41 wzorców (57 pozycji bez wykluczenia).
 
 Domyślna ścieżka `catalog_path` wskazuje submoduł `core/` obok `infra/` w monorepo. W osobnym klonie meritum-infra trzeba ją podać: `-var catalog_path=<ścieżka do catalog.yaml>`. Po zmianie katalogu w core wystarczy ponowny `plan` i `apply`.
 
@@ -33,6 +33,7 @@ Domyślna ścieżka `catalog_path` wskazuje submoduł `core/` obok `infra/` w mo
 | `project_id` | (wymagana) | projekt GCP |
 | `catalog_path` | `../../../core/src/meritum_core/corpus/catalog/catalog.yaml` | katalog źródeł z meritum-core |
 | `data_store_id` | `meritum-live-search` | id data store i wyszukiwarki |
+| `shared_prefix` | `www.gov.pl/web` | prefiks, którego pozycje katalogu dzielą jeden wzorzec |
 
 Wyjścia: `data_store_id`, `serving_config` (pełna nazwa serving config dla adaptera core#34) i `patterns` (lista wzorców).
 

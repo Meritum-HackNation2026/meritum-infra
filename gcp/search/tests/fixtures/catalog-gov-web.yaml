@@ -1,0 +1,5 @@
+# Two gov.pl ministries and an outside domain: the ministries share one www.gov.pl/web pattern.
+entries:
+- domain: www.gov.pl/web/mswia
+- domain: www.gov.pl/web/rodzina
+- domain: policja.pl
