@@ -104,5 +104,12 @@ m_admin_env() {
 m_fact_check_env() {
   [ -z "$1" ] || printf 'MERITUM_FACT_CHECK_PROVIDER=google\nMERITUM_FACT_CHECK_API_KEY=%s\n' "$1"
 }
+# EU sanctions list (infra#66, worker#222, US-ZRD-07): the European Commission's FSF XML 1.1
+# export from data.europa.eu. The token in it is the one public token printed in the catalogue,
+# not a credential. Both workers keep their JSON copy on the env's files volume.
+M_SANCTIONS_LIST_URL="https://webgate.ec.europa.eu/fsd/fsf/public/files/xmlFullSanctionsList_1_1/content?token=dG9rZW4tMjAxNw" # gitleaks:allow public token of the data.europa.eu catalogue
+m_sanctions_env() {
+  printf 'MERITUM_SANCTIONS_LIST_URL=%s\nMERITUM_SANCTIONS_LIST_PATH=%s/eu-sanctions.json\n' "$M_SANCTIONS_LIST_URL" "$M_FILES_DIR"
+}
 m_host() { if [ "$1" = prd ]; then printf 'meritum.%s' "$M_DOMAIN"; else printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; fi; }
 m_mock_host() { if [ "$2" = prd ]; then printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; else printf 'meritum-%s-%s.%s' "$1" "$2" "$M_DOMAIN"; fi; }

@@ -104,6 +104,12 @@ grep -qE '^[[:space:]]*m_fact_check_env "\$\{!fc_var:-\}"$' <<<"$(block "worker-
 grep -qF 'MERITUM_FACT_CHECK_API_KEY_DEV: ${{ secrets.MERITUM_FACT_CHECK_API_KEY_DEV }}' "$here/../../../.github/workflows/platform.yml" || fail "platform.yml: no MERITUM_FACT_CHECK_API_KEY_DEV secret"
 # shellcheck disable=SC2016
 grep -qF 'MERITUM_FACT_CHECK_API_KEY_PRD: ${{ secrets.MERITUM_FACT_CHECK_API_KEY_PRD }}' "$here/../../../.github/workflows/platform.yml" || fail "platform.yml: no MERITUM_FACT_CHECK_API_KEY_PRD secret"
+# EU sanctions list (infra#66): official FSF export and the copy on the files volume, workers only.
+sanctions=$(m_sanctions_env)
+grep -qx 'MERITUM_SANCTIONS_LIST_URL=https://webgate.ec.europa.eu/fsd/fsf/public/files/xmlFullSanctionsList_1_1/content?token=dG9rZW4tMjAxNw' <<<"$sanctions" || fail "m_sanctions_env: no FSF export URL" # gitleaks:allow public catalogue token
+grep -qx "MERITUM_SANCTIONS_LIST_PATH=$M_FILES_DIR/eu-sanctions.json" <<<"$sanctions" || fail "m_sanctions_env: copy not on the files volume"
+grep -qE '^[[:space:]]*m_sanctions_env$' <<<"$(block "worker-\$env.env")" || fail "setup.sh: worker env files must call m_sanctions_env"
+! grep -qF 'm_sanctions_env' <<<"$(block "api-\$env.env")" || fail "setup.sh: api env files must not get the sanctions list"
 echo "app env: ok"
 # Corpus embeddings (infra#57, D2): Vertex in the EU via ADC, both workers (ingest and search
 # must use one model), no-op without GCP credentials.
