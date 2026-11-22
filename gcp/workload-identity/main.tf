@@ -97,3 +97,11 @@ resource "google_project_iam_member" "speech_client" {
   role    = "roles/speech.client"
   member  = "serviceAccount:meritum-worker@${var.project_id}.iam.gserviceaccount.com"
 }
+
+# Worker OCR (Cloud Vision, EU endpoint eu-vision.googleapis.com, worker#39) over ADC.
+# Vision has no caller role: meritum-worker only needs service_usage above.
+resource "google_project_service" "vision" {
+  project            = var.project_id
+  service            = "vision.googleapis.com"
+  disable_on_destroy = false
+}

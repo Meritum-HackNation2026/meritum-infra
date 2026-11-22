@@ -71,6 +71,13 @@ grep -qE '^[[:space:]]*gcp_transcription$' <<<"$(block "worker-\$env.env")" \
   || fail "setup.sh: worker env files must call gcp_transcription"
 ! grep -qE 'gcp_transcription' <<<"$(block "api-\$env.env")" || fail "setup.sh: api env files must not get transcription"
 grep -qF 'gcp_transcription() { :; }' "$here/setup.sh" || fail "setup.sh: gcp_transcription must be a no-op without GCP credentials"
+# Worker OCR (infra#55): Cloud Vision via ADC, worker block only, no-op without GCP credentials.
+ocr=$(m_ocr_env meritum-example)
+grep -qx 'MERITUM_OCR_PROVIDER=vision' <<<"$ocr" || fail "m_ocr_env: no vision provider"
+grep -qx 'MERITUM_OCR_PROJECT=meritum-example' <<<"$ocr" || fail "m_ocr_env: project from argument"
+grep -qE '^[[:space:]]*gcp_ocr$' <<<"$(block "worker-\$env.env")" || fail "setup.sh: worker env files must call gcp_ocr"
+! grep -qE 'gcp_ocr' <<<"$(block "api-\$env.env")" || fail "setup.sh: api env files must not get OCR"
+grep -qF 'gcp_ocr() { :; }' "$here/setup.sh" || fail "setup.sh: gcp_ocr must be a no-op without GCP credentials"
 # Admin e-mails (infra#51): the worker needs the same list as the backend for case_assigned mail.
 grep -qF 'm_admin_env()' "$here/lib.sh" || fail "lib.sh: missing m_admin_env"
 [ "$(m_admin_env 'a@x.pl,b@x.pl')" = 'MERITUM_ADMIN_EMAILS=a@x.pl,b@x.pl' ] || fail "m_admin_env: value passed through"
