@@ -6,7 +6,7 @@
 #   main     prd  meritum.gburek.app       meritum-web-prd  meritum-api-prd  meritum-worker-prd
 #   develop  dev  meritum-dev.gburek.app   meritum-web-dev  meritum-api-dev  meritum-worker-dev
 #
-# Platform mocks (meritum-mocks, main only): meritum-<platform>.gburek.app,
+# Platform mocks (meritum-mocks, main only): meritum-<platform>[-dev].gburek.app,
 # served by meritum-mocks-prd. Static files: meritum-static.gburek.app, served by meritum-static.
 #
 # Everything created here carries the Docker label meritum.managed=true.
