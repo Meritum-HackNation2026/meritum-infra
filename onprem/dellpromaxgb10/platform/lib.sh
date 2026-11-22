@@ -75,5 +75,10 @@ m_web_search_env() {
 m_transcription_env() {
   printf 'MERITUM_TRANSCRIPTION_PROVIDER=speech_v2\nMERITUM_TRANSCRIPTION_PROJECT=%s\n' "$1"
 }
+# Admin e-mails (infra#51): same list as the backend's, for the worker's case_assigned mail.
+# $1 the value from the MERITUM_ADMIN_EMAILS_<ENV> repository secret; empty writes no line.
+m_admin_env() {
+  [ -z "$1" ] || printf 'MERITUM_ADMIN_EMAILS=%s\n' "$1"
+}
 m_host() { if [ "$1" = prd ]; then printf 'meritum.%s' "$M_DOMAIN"; else printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; fi; }
 m_mock_host() { if [ "$2" = prd ]; then printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; else printf 'meritum-%s-%s.%s' "$1" "$2" "$M_DOMAIN"; fi; }
