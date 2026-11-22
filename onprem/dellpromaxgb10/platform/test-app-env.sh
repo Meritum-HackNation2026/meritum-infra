@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Local check, outside PR CI: setup.sh gives both envs PostgreSQL app repositories,
-# LLM stub fixtures only to the dev worker, the real model (OpenRouter) to the dev worker
-# and the stub to the prd worker, and corpus writes only to the prd worker.
+# the real model (OpenRouter) to both workers, LLM stub fixtures only to the dev worker,
+# and corpus writes only to the prd worker.
 set -euo pipefail
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=onprem/dellpromaxgb10/platform/lib.sh
@@ -18,13 +18,11 @@ for app in api worker; do
     elif grep -q '^MERITUM_LLM_STUB_FIXTURES=' <<<"$lines"; then
       fail "$app-$env: stub fixtures belong only to worker-dev"
     fi
-    # D9 (core#97): Claude Haiku 5.5 via OpenRouter on dev; prd stays on the stub until its deploy passes the key.
-    if [ "$app-$env" = worker-dev ]; then
+    # D9 (core#97): Claude Haiku 5.5 via OpenRouter in both environments.
+    if [ "$app" = worker ]; then
       for line in MERITUM_LLM_PROVIDER=openrouter MERITUM_LLM_MODEL=anthropic/claude-haiku-5.5 MERITUM_LLM_REASONING=high; do
-        grep -qx "$line" <<<"$lines" || fail "worker-dev: no $line"
+        grep -Fqx "$line" <<<"$lines" || fail "$app-$env: no $line"
       done
-    elif [ "$app-$env" = worker-prd ]; then
-      grep -qx 'MERITUM_LLM_PROVIDER=stub' <<<"$lines" || fail "worker-prd: no MERITUM_LLM_PROVIDER=stub"
     elif grep -q '^MERITUM_LLM_PROVIDER=' <<<"$lines"; then
       fail "$app-$env: the api builds no LlmPort"
     fi

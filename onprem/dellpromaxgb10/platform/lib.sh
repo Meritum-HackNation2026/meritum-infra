@@ -41,9 +41,8 @@ m_files_env() {
 }
 # LLM stub fixtures inside the worker image, kept on dev for a switch back to the stub, which without them fails every check (worker#68).
 M_LLM_STUB_FIXTURES="/app/features/fixtures/llm_stub_answer.json"
-# LLM of the worker (core#97, D9): Claude Haiku 5.5 via OpenRouter on dev. OPENROUTER_API_KEY
-# comes from the meritum-worker deploy (repository secret), never from these files. Prd keeps the
-# stub until its deploy passes the key, because core's default provider is now openrouter.
+# Worker LLM (core#97, D9): Claude Haiku 5.5 via OpenRouter in dev and prd.
+# The meritum-worker deploy supplies OPENROUTER_API_KEY from the secret for its environment.
 M_LLM_MODEL="anthropic/claude-haiku-5.5"
 M_LLM_REASONING="high"
 # Env file lines of app $1 (api, worker) in env $2: meritum-core repositories in PostgreSQL,
@@ -52,10 +51,11 @@ m_app_env() {
   printf 'MERITUM_DATABASE_PROVIDER=postgres\n'
   if [ "$1-$2" = worker-dev ]; then
     printf 'MERITUM_LLM_STUB_FIXTURES=%s\n' "$M_LLM_STUB_FIXTURES"
+  fi
+  if [ "$1" = worker ]; then
     printf 'MERITUM_LLM_PROVIDER=openrouter\nMERITUM_LLM_MODEL=%s\nMERITUM_LLM_REASONING=%s\n' "$M_LLM_MODEL" "$M_LLM_REASONING"
   fi
   if [ "$1-$2" = worker-prd ]; then
-    printf 'MERITUM_LLM_PROVIDER=stub\n'
     printf 'MERITUM_CORPUS_INGEST=enabled\n'
   fi
   # $3 the corpus URL of the env's worker role: prd writes it (db.sh), dev only reads (infra#57).
