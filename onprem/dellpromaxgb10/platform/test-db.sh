@@ -75,6 +75,12 @@ for env in dev prd; do for role in api worker; do
   denied "$role $env has no DDL in corpus" "$(as "$role" "$env" app "CREATE TABLE corpus.u (id int)")"
 done; done
 denied "mocks prd cannot read corpus" "$(as mocks prd meritum "SELECT v FROM corpus.doc")"
+# corpus_ready (core#168): the same owner and readers as corpus.
+check "worker prd owns corpus_ready" "$(q "SELECT nspowner::regrole FROM pg_namespace WHERE nspname = 'corpus_ready'")" meritum_worker_prd
+check "worker prd fills a corpus_ready table" \
+  "$(as worker prd app "CREATE TABLE corpus_ready.g (v text); INSERT INTO corpus_ready.g VALUES ('g'); SELECT v FROM corpus_ready.g")" g
+check "api dev reads corpus_ready" "$(as api dev app "SELECT v FROM corpus_ready.g")" g
+denied "worker dev cannot write corpus_ready" "$(as worker dev app "INSERT INTO corpus_ready.g VALUES ('x')")"
 
 first_passwords=$(cat "$state/db.env")
 m_db_passwords "$state/db.env" "${pw_vars[@]}" 2>/dev/null
