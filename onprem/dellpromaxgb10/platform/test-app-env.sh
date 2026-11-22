@@ -71,4 +71,14 @@ grep -qE '^[[:space:]]*gcp_transcription$' <<<"$(block "worker-\$env.env")" \
   || fail "setup.sh: worker env files must call gcp_transcription"
 ! grep -qE 'gcp_transcription' <<<"$(block "api-\$env.env")" || fail "setup.sh: api env files must not get transcription"
 grep -qF 'gcp_transcription() { :; }' "$here/setup.sh" || fail "setup.sh: gcp_transcription must be a no-op without GCP credentials"
+# Admin e-mails (infra#51): the worker needs the same list as the backend for case_assigned mail.
+grep -qF 'm_admin_env()' "$here/lib.sh" || fail "lib.sh: missing m_admin_env"
+[ "$(m_admin_env 'a@x.pl,b@x.pl')" = 'MERITUM_ADMIN_EMAILS=a@x.pl,b@x.pl' ] || fail "m_admin_env: value passed through"
+[ -z "$(m_admin_env '')" ] || fail "m_admin_env: empty value must write no line"
+grep -qE '^[[:space:]]*m_admin_env "\$\{!admin_var:-\}"$' <<<"$(block "worker-\$env.env")" || fail "setup.sh: worker env files must call m_admin_env"
+! grep -qF 'm_admin_env' <<<"$(block "api-\$env.env")" || fail "setup.sh: api env files must not get admin e-mails"
+# shellcheck disable=SC2016
+grep -qF 'MERITUM_ADMIN_EMAILS_DEV: ${{ secrets.MERITUM_ADMIN_EMAILS_DEV }}' "$here/../../../.github/workflows/platform.yml" || fail "platform.yml: no MERITUM_ADMIN_EMAILS_DEV secret"
+# shellcheck disable=SC2016
+grep -qF 'MERITUM_ADMIN_EMAILS_PRD: ${{ secrets.MERITUM_ADMIN_EMAILS_PRD }}' "$here/../../../.github/workflows/platform.yml" || fail "platform.yml: no MERITUM_ADMIN_EMAILS_PRD secret"
 echo "app env: ok"

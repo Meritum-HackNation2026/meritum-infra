@@ -151,12 +151,18 @@ for env in "${ENVS[@]}"; do
     gcp_pii
     gcp_web_search worker "$env"
     gcp_transcription
+    admin_var=MERITUM_ADMIN_EMAILS_${env^^}
+    m_admin_env "${!admin_var:-}"
     extra
   } >"$M_STATE/envs/worker-$env.env"
   has_env mocks "$env" && {
     printf 'MERITUM_ENV=%s\n' "$env"
     printf 'DATABASE_URL=%s\n' "$(m_db_url "$(m_role mocks "$env")" "$(pw mocks "$env")" meritum)"
   } >"$M_STATE/envs/mocks-$env.env"
+done
+for env in "${ENVS[@]}"; do
+  admin_var=MERITUM_ADMIN_EMAILS_${env^^}
+  [ -n "${!admin_var:-}" ] || echo "::warning title=Admin e-mails::$admin_var is not set; worker-$env gets no MERITUM_ADMIN_EMAILS"
 done
 m_log "env files written to $M_STATE/envs"
 
