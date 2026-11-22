@@ -18,8 +18,8 @@ run "patterns_from_catalog" {
     error_message = "Data store must be a website data store."
   }
   assert {
-    # The nested mswia path is already covered by www.gov.pl/web/mswia.
-    condition     = toset(keys(google_discovery_engine_target_site.catalog)) == toset(["www.gov.pl/web/mswia", "policja.pl"])
+    # Both mswia entries fall under the shared www.gov.pl/web pattern.
+    condition     = toset(keys(google_discovery_engine_target_site.catalog)) == toset(["www.gov.pl/web", "policja.pl"])
     error_message = "One pattern per included catalog entry, excluded entries and covered paths left out."
   }
   assert {
@@ -40,4 +40,19 @@ run "pattern_limit" {
   }
 
   expect_failures = [google_discovery_engine_data_store.live]
+}
+
+run "gov_web_pattern" {
+  command = plan
+
+  variables {
+    catalog_path = "tests/fixtures/catalog-gov-web.yaml"
+  }
+
+  assert {
+    # Every www.gov.pl/web/<service> entry is searched under one pattern, which keeps the
+    # catalogue under the 50-pattern limit; the core adapter still keeps catalogue domains only.
+    condition     = toset(keys(google_discovery_engine_target_site.catalog)) == toset(["www.gov.pl/web", "policja.pl"])
+    error_message = "gov.pl services share the www.gov.pl/web pattern."
+  }
 }

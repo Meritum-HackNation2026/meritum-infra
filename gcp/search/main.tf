@@ -26,7 +26,10 @@ resource "google_project_service" "discoveryengine" {
 }
 
 locals {
-  included = [for e in yamldecode(file(var.catalog_path)).entries : e.domain if !try(e.excluded, false)]
+  domains = [for e in yamldecode(file(var.catalog_path)).entries : e.domain if !try(e.excluded, false)]
+  # gov.pl services share one pattern so the catalogue stays under the 50-pattern limit; the
+  # core search adapter still keeps only results on catalogue domains (US-KOR-04).
+  included = distinct([for d in local.domains : startswith(d, "${var.shared_prefix}/") ? var.shared_prefix : d])
   # A path under another catalog pattern is already searched (exact_match = false), so it does
   # not use one of the 50 basic website search patterns.
   patterns = toset([for p in local.included : p if !anytrue([for q in local.included : startswith(p, "${q}/")])])
