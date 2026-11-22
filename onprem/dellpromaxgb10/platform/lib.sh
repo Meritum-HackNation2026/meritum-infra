@@ -80,5 +80,10 @@ m_transcription_env() {
 m_admin_env() {
   [ -z "$1" ] || printf 'MERITUM_ADMIN_EMAILS=%s\n' "$1"
 }
+# Fact Check (infra#53): Google Fact Check Tools API for the worker.
+# $1 the value from the MERITUM_FACT_CHECK_API_KEY_<ENV> repository secret; empty writes no lines.
+m_fact_check_env() {
+  [ -z "$1" ] || printf 'MERITUM_FACT_CHECK_PROVIDER=google\nMERITUM_FACT_CHECK_API_KEY=%s\n' "$1"
+}
 m_host() { if [ "$1" = prd ]; then printf 'meritum.%s' "$M_DOMAIN"; else printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; fi; }
 m_mock_host() { if [ "$2" = prd ]; then printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; else printf 'meritum-%s-%s.%s' "$1" "$2" "$M_DOMAIN"; fi; }

@@ -153,6 +153,8 @@ for env in "${ENVS[@]}"; do
     gcp_transcription
     admin_var=MERITUM_ADMIN_EMAILS_${env^^}
     m_admin_env "${!admin_var:-}"
+    fc_var=MERITUM_FACT_CHECK_API_KEY_${env^^}
+    m_fact_check_env "${!fc_var:-}"
     extra
   } >"$M_STATE/envs/worker-$env.env"
   has_env mocks "$env" && {
@@ -163,6 +165,8 @@ done
 for env in "${ENVS[@]}"; do
   admin_var=MERITUM_ADMIN_EMAILS_${env^^}
   [ -n "${!admin_var:-}" ] || echo "::warning title=Admin e-mails::$admin_var is not set; worker-$env gets no MERITUM_ADMIN_EMAILS"
+  fc_var=MERITUM_FACT_CHECK_API_KEY_${env^^}
+  [ -n "${!fc_var:-}" ] || echo "::warning title=Fact Check::$fc_var is not set; worker-$env gets no MERITUM_FACT_CHECK_*"
 done
 m_log "env files written to $M_STATE/envs"
 
