@@ -7,7 +7,7 @@
 #   develop  dev  meritum-dev.gburek.app   meritum-web-dev  meritum-api-dev  meritum-worker-dev
 #
 # Platform mocks (meritum-mocks, main only): meritum-<platform>.gburek.app,
-# served by meritum-mocks-prd.
+# served by meritum-mocks-prd. Static files: meritum-static.gburek.app, served by meritum-static.
 #
 # Everything created here carries the Docker label meritum.managed=true.
 # shellcheck disable=SC2034  # used by the scripts that source this file
@@ -21,6 +21,25 @@ M_GATEWAY="meritum-gateway"
 M_GATEWAY_BIND="${M_GATEWAY_BIND:-172.17.0.1:18095}"
 
 M_MOCK_PLATFORMS=(x facebook instagram reddit tiktok discord)
+
+# Static file host (infra#69): one instance, no envs. meritum-static serves M_STATIC_DIR,
+# a host directory outside the runner's home so that M_STATIC_OWNER can scp/rsync into it.
+M_NGINX_IMAGE="nginx:1.29-alpine"
+M_STATIC="meritum-static"
+M_STATIC_HOST="meritum-static.$M_DOMAIN"
+M_STATIC_DIR="${M_STATIC_DIR:-/srv/meritum/static}"
+M_STATIC_OWNER="${M_STATIC_OWNER:-cyprian}"
+# m_static_run <name> <network> <dir> <nginx.conf> <uid:gid> [docker run args]: nginx as the
+# directory's owner (reads whatever the owner uploaded, whatever its mode), directory
+# read-only, no host port, read-only root filesystem, no capabilities.
+m_static_run() {
+  local name=$1 network=$2 dir=$3 conf=$4 user=$5
+  shift 5
+  docker run -d --name "$name" --network "$network" --restart unless-stopped \
+    --label meritum.managed=true --label meritum.role=static \
+    --user "$user" --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+    -v "$dir:/srv/static:ro" -v "$conf:/etc/nginx/nginx.conf:ro" "$@" "$M_NGINX_IMAGE" >/dev/null
+}
 
 m_log() { printf '[meritum] %s\n' "$*" >&2; }
 m_role() { printf 'meritum_%s_%s' "$1" "$2"; }

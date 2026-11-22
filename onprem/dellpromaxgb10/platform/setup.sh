@@ -13,9 +13,12 @@
 #   gcp       workload identity certificates and external_account credential files of
 #             the api and worker, ~/meritum/gcp (wif.sh, gcp/workload-identity/)
 #   env files ~/meritum/envs/<app>-<env>.env (mode 600), read by the app deploys
+#   static    meritum-static (nginx) serves the host directory M_STATIC_DIR, read-only,
+#             at meritum-static.gburek.app; the directory belongs to M_STATIC_OWNER
 #   gateway   meritum-gateway (nginx) on 172.17.0.1:18095, reachable by cloudflared only
 #   routes    meritum.gburek.app -> meritum-web-prd, meritum-dev.gburek.app -> meritum-web-dev,
-#             meritum-<platform>.gburek.app -> meritum-mocks-prd (nginx.conf)
+#             meritum-<platform>.gburek.app -> meritum-mocks-prd,
+#             meritum-static.gburek.app -> meritum-static (nginx.conf)
 #             (Cloudflare tunnel ingress + DNS; skipped with a warning without a token)
 #
 # Env: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_TUNNEL_ID, CLOUDFLARE_ZONE_ID,
@@ -179,6 +182,20 @@ for env in "${ENVS[@]}"; do
 done
 m_log "env files written to $M_STATE/envs"
 
+# --- static files: one instance, no envs --------------------------------------------
+static_owner="$(id -u "$M_STATIC_OWNER"):$(id -g "$M_STATIC_OWNER")"
+# Docker creates the missing host directory as root; hand it (not its contents) to the uploader.
+docker run --rm --user 0 --entrypoint chown -v "$M_STATIC_DIR:/static" "$M_NGINX_IMAGE" "$static_owner" /static
+cp "$here/static.nginx.conf" "$M_STATE/gateway/static.nginx.conf"
+chmod 644 "$M_STATE/gateway/static.nginx.conf"
+hash=$({ cat "$M_STATE/gateway/static.nginx.conf"; echo "$M_STATIC_DIR $static_owner"; } | sha256sum | cut -c1-16)
+if [ "$(docker inspect -f '{{index .Config.Labels "meritum.config-hash"}}' "$M_STATIC" 2>/dev/null || true)" != "$hash" ]; then
+  m_log "(re)creating $M_STATIC for $M_STATIC_DIR"
+  docker rm -f "$M_STATIC" >/dev/null 2>&1 || true
+  m_static_run "$M_STATIC" "$M_NETWORK" "$M_STATIC_DIR" "$M_STATE/gateway/static.nginx.conf" "$static_owner" \
+    --label meritum.config-hash="$hash"
+fi
+
 # --- gateway ---------------------------------------------------------------------
 cp "$here/nginx.conf" "$M_STATE/gateway/nginx.conf"
 chmod 644 "$M_STATE/gateway/nginx.conf"
@@ -189,7 +206,7 @@ if [ "$(docker inspect -f '{{index .Config.Labels "meritum.config-hash"}}' "$M_G
   docker run -d --name "$M_GATEWAY" --network "$M_NETWORK" --restart unless-stopped \
     --label meritum.managed=true --label meritum.role=gateway --label meritum.config-hash="$hash" \
     -p "$M_GATEWAY_BIND:80" -v "$M_STATE/gateway/nginx.conf:/etc/nginx/nginx.conf:ro" \
-    nginx:1.29-alpine >/dev/null
+    "$M_NGINX_IMAGE" >/dev/null
 fi
 
 # --- public routes ---------------------------------------------------------------
@@ -207,5 +224,7 @@ else
       cf_dns_ensure "$host"
     done
   done
+  cf_ingress_ensure "$M_STATIC_HOST" "http://$M_GATEWAY_BIND"
+  cf_dns_ensure "$M_STATIC_HOST"
 fi
 m_log "platform ready"
