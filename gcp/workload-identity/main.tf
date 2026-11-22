@@ -82,3 +82,18 @@ resource "google_project_iam_member" "discoveryengine_viewer" {
   role    = "roles/discoveryengine.viewer"
   member  = "serviceAccount:meritum-worker@${var.project_id}.iam.gserviceaccount.com"
 }
+
+# Worker transcription (Speech-to-Text v2, Chirp 3 in the eu multi-region, ADR-30)
+# over ADC, i.e. as meritum-worker (meritum-speech only reads gs:// for batch);
+# disable_on_destroy=false keeps the API on.
+resource "google_project_service" "speech" {
+  project            = var.project_id
+  service            = "speech.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_iam_member" "speech_client" {
+  project = var.project_id
+  role    = "roles/speech.client"
+  member  = "serviceAccount:meritum-worker@${var.project_id}.iam.gserviceaccount.com"
+}

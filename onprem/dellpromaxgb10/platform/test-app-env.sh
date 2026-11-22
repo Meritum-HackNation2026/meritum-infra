@@ -60,4 +60,15 @@ for other in "api dev" "api prd" "worker prd"; do
   [ -z "$(m_web_search_env $other 196419832223)" ] || fail "m_web_search_env: $other must get no web search"
 done
 grep -qF "gcp_web_search worker \"\$env\"" "$here/setup.sh" || fail "setup.sh: worker env files must call gcp_web_search"
+grep -qF 'm_transcription_env()' "$here/lib.sh" || fail "lib.sh: missing m_transcription_env"
+stt=$(m_transcription_env meritum-example)
+grep -qx 'MERITUM_TRANSCRIPTION_PROVIDER=speech_v2' <<<"$stt" || fail "m_transcription_env: no speech_v2 provider"
+grep -qx 'MERITUM_TRANSCRIPTION_PROJECT=meritum-example' <<<"$stt" || fail "m_transcription_env: project from argument"
+# Env-file blocks of setup.sh: the call sits in the worker block only, and without
+# GCP credentials gcp_transcription stays a no-op (worker on the stub).
+block() { awk -v f="$1" '/^  \{$/ {b=""; next} /^  \} >/ {if (index($0, f)) print b; next} {b=b $0 "\n"}' "$here/setup.sh"; }
+grep -qE '^[[:space:]]*gcp_transcription$' <<<"$(block "worker-\$env.env")" \
+  || fail "setup.sh: worker env files must call gcp_transcription"
+! grep -qE 'gcp_transcription' <<<"$(block "api-\$env.env")" || fail "setup.sh: api env files must not get transcription"
+grep -qF 'gcp_transcription() { :; }' "$here/setup.sh" || fail "setup.sh: gcp_transcription must be a no-op without GCP credentials"
 echo "app env: ok"
