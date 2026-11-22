@@ -34,6 +34,8 @@ jobs:
       MERITUM_GCP_PROJECT_NUMBER: ${{ vars.GCP_PROJECT_NUMBER }}
       MERITUM_ADMIN_EMAILS_DEV: ${{ secrets.MERITUM_ADMIN_EMAILS_DEV }}
       MERITUM_ADMIN_EMAILS_PRD: ${{ secrets.MERITUM_ADMIN_EMAILS_PRD }}
+      MERITUM_FACT_CHECK_API_KEY_DEV: ${{ secrets.MERITUM_FACT_CHECK_API_KEY_DEV }}
+      MERITUM_FACT_CHECK_API_KEY_PRD: ${{ secrets.MERITUM_FACT_CHECK_API_KEY_PRD }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: onprem/dellpromaxgb10/platform/setup.sh
