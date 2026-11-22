@@ -12,6 +12,7 @@
 # Mocks (prd only) keep their own schema mocks_prd.
 # corpus is shared by both envs: meritum_worker_prd owns it (corpus migrations
 # run from main only, worker#32), the other api and worker roles only read it.
+# corpus_ready (core#168) has the same owner and readers.
 
 pw_var() { printf '%s_PASSWORD' "$(printf '%s_%s' "$1" "$2" | tr '[:lower:]' '[:upper:]')"; }
 m_app_schema() { printf 'app_%s' "$1"; }
@@ -74,17 +75,21 @@ SQL
   # Shared corpus: only the prd worker (deploys from main) owns it and runs its
   # migrations; every other app role reads. Mocks get nothing.
   worker=$(m_role worker prd)
-  echo "CREATE SCHEMA IF NOT EXISTS corpus AUTHORIZATION $worker;"
-  echo "ALTER SCHEMA corpus OWNER TO $worker;"
-  for env in $1; do for role in api worker; do
-    [ "$role $env" != "worker prd" ] || continue
-    reader=$(m_role "$role" "$env")
-    cat <<SQL
-GRANT USAGE ON SCHEMA corpus TO $reader;
-GRANT SELECT ON ALL TABLES IN SCHEMA corpus TO $reader;
-ALTER DEFAULT PRIVILEGES FOR ROLE $worker IN SCHEMA corpus GRANT SELECT ON TABLES TO $reader;
+  # corpus_ready (core#168): the agent-ready layer built from corpus, same owner
+  # and readers; empty until MERITUM_CORPUS_READY turns the gold build on.
+  for shared in corpus corpus_ready; do
+    echo "CREATE SCHEMA IF NOT EXISTS $shared AUTHORIZATION $worker;"
+    echo "ALTER SCHEMA $shared OWNER TO $worker;"
+    for env in $1; do for role in api worker; do
+      [ "$role $env" != "worker prd" ] || continue
+      reader=$(m_role "$role" "$env")
+      cat <<SQL
+GRANT USAGE ON SCHEMA $shared TO $reader;
+GRANT SELECT ON ALL TABLES IN SCHEMA $shared TO $reader;
+ALTER DEFAULT PRIVILEGES FOR ROLE $worker IN SCHEMA $shared GRANT SELECT ON TABLES TO $reader;
 SQL
-  done; done
+    done; done
+  done
   # CREATE DATABASE cannot run in a DO block; \gexec runs it only when missing.
   for env in $1; do
     db=$(m_dbos_db "$env"); api=$(m_role api "$env"); worker=$(m_role worker "$env")
