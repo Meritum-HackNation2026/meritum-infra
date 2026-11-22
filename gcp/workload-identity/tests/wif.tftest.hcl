@@ -109,3 +109,18 @@ run "speech_v2_for_the_worker" {
     error_message = "Only meritum-worker transcribes recordings and needs roles/speech.client."
   }
 }
+
+run "cloud_vision_for_the_worker" {
+  command = plan
+
+  assert {
+    condition     = google_project_service.vision.service == "vision.googleapis.com" && google_project_service.vision.disable_on_destroy == false
+    error_message = "Cloud Vision (worker OCR, EU endpoint) must be enabled and stay enabled on destroy."
+  }
+  # Vision has no predefined caller role: calls over ADC only need the project to be
+  # usable as quota project, which service_usage grants to meritum-worker.
+  assert {
+    condition     = contains(keys(google_project_iam_member.service_usage), "meritum-worker")
+    error_message = "meritum-worker needs serviceusage.serviceUsageConsumer to call Cloud Vision."
+  }
+}
