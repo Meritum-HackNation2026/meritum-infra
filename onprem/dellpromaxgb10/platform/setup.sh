@@ -163,6 +163,7 @@ for env in "${ENVS[@]}"; do
     m_admin_env "${!admin_var:-}"
     fc_var=MERITUM_FACT_CHECK_API_KEY_${env^^}
     m_fact_check_env "${!fc_var:-}"
+    m_sanctions_env
     extra
   } >"$M_STATE/envs/worker-$env.env"
   has_env mocks "$env" && {
