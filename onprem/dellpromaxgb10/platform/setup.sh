@@ -17,7 +17,7 @@
 #             at meritum-static.gburek.app; the directory belongs to M_STATIC_OWNER
 #   gateway   meritum-gateway (nginx) on 172.17.0.1:18095, reachable by cloudflared only
 #   routes    meritum.gburek.app -> meritum-web-prd, meritum-dev.gburek.app -> meritum-web-dev,
-#             meritum-<platform>.gburek.app -> meritum-mocks-prd,
+#             meritum-<platform>[-dev].gburek.app -> meritum-mocks-prd,
 #             meritum-static.gburek.app -> meritum-static (nginx.conf)
 #             (Cloudflare tunnel ingress + DNS; skipped with a warning without a token)
 #
@@ -218,7 +218,8 @@ else
   . "$here/cloudflare.sh"
   for env in "${ENVS[@]}"; do
     hosts=("$(m_host "$env")")
-    if has_env mocks "$env"; then for p in "${M_MOCK_PLATFORMS[@]}"; do hosts+=("$(m_mock_host "$p" "$env")"); done; fi
+    # Mock hosts of every env go to meritum-mocks-prd; the -dev ones serve the dev extension.
+    for p in "${M_MOCK_PLATFORMS[@]}"; do hosts+=("$(m_mock_host "$p" "$env")"); done
     for host in "${hosts[@]}"; do
       cf_ingress_ensure "$host" "http://$M_GATEWAY_BIND"
       cf_dns_ensure "$host"
