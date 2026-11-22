@@ -101,6 +101,7 @@ done
 gcp_env() { :; }
 gcp_pii() { :; }
 gcp_web_search() { :; }
+gcp_transcription() { :; }
 if [ -z "${MERITUM_GCP_PROJECT_ID:-}" ] || [ -z "${MERITUM_GCP_PROJECT_NUMBER:-}" ]; then
   m_log "WARNING: MERITUM_GCP_PROJECT_ID or MERITUM_GCP_PROJECT_NUMBER unset, no GCP credentials"
   echo "::warning title=GCP::GCP_PROJECT_ID or GCP_PROJECT_NUMBER is not set; api and worker get no GCP credentials"
@@ -109,6 +110,7 @@ else
   gcp_env() { m_wif_env "$M_STATE/gcp" "$1" "$MERITUM_GCP_PROJECT_ID"; }
   gcp_pii() { m_pii_env "$MERITUM_GCP_PROJECT_ID"; }
   gcp_web_search() { m_web_search_env "$1" "$2" "$MERITUM_GCP_PROJECT_NUMBER"; }
+  gcp_transcription() { m_transcription_env "$MERITUM_GCP_PROJECT_ID"; }
   m_log "GCP credentials ready; trust anchor $M_STATE/gcp/ca/ca.pem, $(openssl x509 -noout -fingerprint -sha256 -in "$M_STATE/gcp/ca/ca.pem")"
 fi
 
@@ -148,6 +150,7 @@ for env in "${ENVS[@]}"; do
     gcp_env worker
     gcp_pii
     gcp_web_search worker "$env"
+    gcp_transcription
     extra
   } >"$M_STATE/envs/worker-$env.env"
   has_env mocks "$env" && {

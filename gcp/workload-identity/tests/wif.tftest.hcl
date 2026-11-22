@@ -96,3 +96,16 @@ run "live_web_search_for_worker_only" {
     error_message = "Only meritum-worker calls :search on the meritum-live-search serving config (infra#42)."
   }
 }
+
+run "speech_v2_for_the_worker" {
+  command = plan
+
+  assert {
+    condition     = google_project_service.speech.service == "speech.googleapis.com" && google_project_service.speech.disable_on_destroy == false
+    error_message = "Speech-to-Text v2 (Chirp 3, worker transcription) must be enabled and stay enabled on destroy."
+  }
+  assert {
+    condition     = google_project_iam_member.speech_client.role == "roles/speech.client" && google_project_iam_member.speech_client.member == "serviceAccount:meritum-worker@meritum-test.iam.gserviceaccount.com"
+    error_message = "Only meritum-worker transcribes recordings and needs roles/speech.client."
+  }
+}

@@ -71,5 +71,9 @@ m_web_search_env() {
   [ "$1-$2" = worker-dev ] || return 0
   printf 'MERITUM_WEB_SEARCH_PROVIDER=vertex_search\nMERITUM_WEB_SEARCH_PROJECT=%s\nMERITUM_WEB_SEARCH_ENGINE=%s\n' "$3" "$M_WEB_SEARCH_ENGINE"
 }
+# Worker transcription (ADR-30): Chirp 3 via ADC, only with GCP credentials from setup.sh.
+m_transcription_env() {
+  printf 'MERITUM_TRANSCRIPTION_PROVIDER=speech_v2\nMERITUM_TRANSCRIPTION_PROJECT=%s\n' "$1"
+}
 m_host() { if [ "$1" = prd ]; then printf 'meritum.%s' "$M_DOMAIN"; else printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; fi; }
 m_mock_host() { if [ "$2" = prd ]; then printf 'meritum-%s.%s' "$1" "$M_DOMAIN"; else printf 'meritum-%s-%s.%s' "$1" "$2" "$M_DOMAIN"; fi; }
