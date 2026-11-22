@@ -73,6 +73,8 @@ m_app_env() {
   fi
   if [ "$1" = worker ]; then
     printf 'MERITUM_LLM_PROVIDER=openrouter\nMERITUM_LLM_MODEL=%s\nMERITUM_LLM_REASONING=%s\n' "$M_LLM_MODEL" "$M_LLM_REASONING"
+    # Reranker of corpus passages (worker#248): Cohere 3.5 via OpenRouter, key OPENROUTER_API_KEY.
+    printf 'MERITUM_RERANKER=openrouter\nMERITUM_RERANKER_MODEL=cohere/rerank-v3.5\n'
   fi
   if [ "$1-$2" = worker-prd ]; then
     printf 'MERITUM_CORPUS_INGEST=enabled\n'

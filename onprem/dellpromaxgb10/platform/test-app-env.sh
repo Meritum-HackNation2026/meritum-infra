@@ -20,7 +20,7 @@ for app in api worker; do
     fi
     # D9 (core#97): Claude Haiku 5.5 via OpenRouter in both environments.
     if [ "$app" = worker ]; then
-      for line in MERITUM_LLM_PROVIDER=openrouter MERITUM_LLM_MODEL=anthropic/claude-haiku-5.5 MERITUM_LLM_REASONING=high; do
+      for line in MERITUM_LLM_PROVIDER=openrouter MERITUM_LLM_MODEL=anthropic/claude-haiku-5.5 MERITUM_LLM_REASONING=high MERITUM_RERANKER=openrouter MERITUM_RERANKER_MODEL=cohere/rerank-v3.5; do
         grep -Fqx "$line" <<<"$lines" || fail "$app-$env: no $line"
       done
     elif grep -q '^MERITUM_LLM_PROVIDER=' <<<"$lines"; then
