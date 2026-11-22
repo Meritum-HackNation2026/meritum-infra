@@ -124,3 +124,12 @@ run "cloud_vision_for_the_worker" {
     error_message = "meritum-worker needs serviceusage.serviceUsageConsumer to call Cloud Vision."
   }
 }
+
+run "vertex_embeddings_for_the_worker" {
+  command = plan
+
+  assert {
+    condition     = google_project_iam_member.vertex_embeddings.role == "roles/aiplatform.user" && google_project_iam_member.vertex_embeddings.member == "serviceAccount:meritum-worker@meritum-test.iam.gserviceaccount.com"
+    error_message = "meritum-worker embeds corpus passages in Vertex AI and needs roles/aiplatform.user."
+  }
+}
