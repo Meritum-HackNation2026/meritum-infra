@@ -103,6 +103,7 @@ gcp_pii() { :; }
 gcp_web_search() { :; }
 gcp_transcription() { :; }
 gcp_ocr() { :; }
+gcp_embeddings() { :; }
 if [ -z "${MERITUM_GCP_PROJECT_ID:-}" ] || [ -z "${MERITUM_GCP_PROJECT_NUMBER:-}" ]; then
   m_log "WARNING: MERITUM_GCP_PROJECT_ID or MERITUM_GCP_PROJECT_NUMBER unset, no GCP credentials"
   echo "::warning title=GCP::GCP_PROJECT_ID or GCP_PROJECT_NUMBER is not set; api and worker get no GCP credentials"
@@ -113,6 +114,7 @@ else
   gcp_web_search() { m_web_search_env "$1" "$2" "$MERITUM_GCP_PROJECT_NUMBER"; }
   gcp_transcription() { m_transcription_env "$MERITUM_GCP_PROJECT_ID"; }
   gcp_ocr() { m_ocr_env "$MERITUM_GCP_PROJECT_ID"; }
+  gcp_embeddings() { m_embeddings_env "$MERITUM_GCP_PROJECT_ID"; }
   m_log "GCP credentials ready; trust anchor $M_STATE/gcp/ca/ca.pem, $(openssl x509 -noout -fingerprint -sha256 -in "$M_STATE/gcp/ca/ca.pem")"
 fi
 
@@ -121,8 +123,8 @@ gateway_subnet=$(docker network inspect "$M_NETWORK" -f '{{range .IPAM.Config}}{
 pw() { local var; var=$(pw_var "$1" "$2"); printf '%s' "${!var}"; }
 # MERITUM_DATABASE_URL: database meritum, search_path app_<env>, public.
 app_url() { m_db_url "$(m_role "$1" "$2")" "$(pw "$1" "$2")" meritum "$(m_app_schema "$2")"; }
-# MERITUM_CORPUS_DATABASE_URL: only the prd worker writes to schema corpus.
-corpus_url() { m_db_url "$(m_role worker prd)" "$(pw worker prd)" meritum corpus; }
+# MERITUM_CORPUS_DATABASE_URL: the env's worker role; only prd may write to schema corpus (db.sh).
+corpus_url() { m_db_url "$(m_role worker "$1")" "$(pw worker "$1")" meritum corpus; }
 # MERITUM_DBOS_URL: the env's DBOS database; tables in schema dbos (DBOS default).
 dbos_url() { m_db_url "$(m_role "$1" "$2")" "$(pw "$1" "$2")" "$(m_dbos_db "$2")"; }
 extra() { if [ -f "$M_STATE/app.env" ]; then grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$M_STATE/app.env" || true; fi; }
@@ -144,7 +146,7 @@ for env in "${ENVS[@]}"; do
   {
     printf 'MERITUM_ENV=%s\n' "$env"
     printf 'MERITUM_DATABASE_URL=%s\n' "$(app_url worker "$env")"
-    m_app_env worker "$env" "$(corpus_url)"
+    m_app_env worker "$env" "$(corpus_url "$env")"
     printf 'MERITUM_DBOS_URL=%s\n' "$(dbos_url worker "$env")"
     printf 'MERITUM_DBOS_SCHEMA=dbos\n'
     printf 'MERITUM_API_ROLE=%s\n' "$(m_role api "$env")"
@@ -154,6 +156,9 @@ for env in "${ENVS[@]}"; do
     gcp_web_search worker "$env"
     gcp_transcription
     gcp_ocr
+    gcp_embeddings
+    cv_var=MERITUM_CORPUS_VERSION_${env^^}
+    m_corpus_version_env "${!cv_var:-}"
     admin_var=MERITUM_ADMIN_EMAILS_${env^^}
     m_admin_env "${!admin_var:-}"
     fc_var=MERITUM_FACT_CHECK_API_KEY_${env^^}

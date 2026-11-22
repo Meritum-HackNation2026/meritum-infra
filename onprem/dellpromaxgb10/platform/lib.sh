@@ -56,8 +56,23 @@ m_app_env() {
   fi
   if [ "$1-$2" = worker-prd ]; then
     printf 'MERITUM_LLM_PROVIDER=stub\n'
+    printf 'MERITUM_CORPUS_INGEST=enabled\n'
+  fi
+  # $3 the corpus URL of the env's worker role: prd writes it (db.sh), dev only reads (infra#57).
+  if [ "$1" = worker ]; then
     printf 'MERITUM_CORPUS_PROVIDER=postgres\nMERITUM_CORPUS_DATABASE_URL=%s\n' "$3"
   fi
+}
+# Corpus embeddings (infra#57, owner decision D2: in the EU): Vertex via ADC, both workers,
+# because ingest (prd) and search (dev and prd) must use one model. Only with GCP credentials.
+m_embeddings_env() {
+  printf 'MERITUM_EMBEDDINGS_PROVIDER=vertex\nMERITUM_EMBEDDINGS_MODEL=gemini-embedding-001\n'
+  printf 'MERITUM_EMBEDDINGS_REGION=europe-central2\nMERITUM_EMBEDDINGS_PROJECT=%s\n' "$1"
+}
+# Snapshot search_corpus reads (worker pins one, no auto-latest yet); $1 the value of the
+# MERITUM_CORPUS_VERSION_<ENV> repository variable, empty writes no line (step skipped).
+m_corpus_version_env() {
+  [ -z "$1" ] || printf 'MERITUM_CORPUS_VERSION=%s\n' "$1"
 }
 # Sensitive Data Protection (core#90): only with GCP credentials from setup.sh (wif.sh).
 M_PII_LOCATION="${M_PII_LOCATION:-europe-central2}"

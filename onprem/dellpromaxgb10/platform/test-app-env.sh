@@ -28,20 +28,26 @@ for app in api worker; do
     elif grep -q '^MERITUM_LLM_PROVIDER=' <<<"$lines"; then
       fail "$app-$env: the api builds no LlmPort"
     fi
+    # infra#57: prd writes the corpus (ingest), dev reads it with its own role.
     if [ "$app-$env" = worker-prd ]; then
       grep -qx 'MERITUM_CORPUS_PROVIDER=postgres' <<<"$lines" || fail "worker-prd: no corpus provider"
       grep -qx "MERITUM_CORPUS_DATABASE_URL=$corpus_url" <<<"$lines" || fail "worker-prd: no corpus database URL"
+      grep -qx 'MERITUM_CORPUS_INGEST=enabled' <<<"$lines" || fail "worker-prd: no corpus ingest"
+    elif [ "$app-$env" = worker-dev ]; then
+      grep -qx 'MERITUM_CORPUS_PROVIDER=postgres' <<<"$lines" || fail "worker-dev: no corpus provider"
+      grep -qx "MERITUM_CORPUS_DATABASE_URL=$corpus_url" <<<"$lines" || fail "worker-dev: no corpus database URL"
+      ! grep -q '^MERITUM_CORPUS_INGEST=' <<<"$lines" || fail "worker-dev: only worker-prd may ingest"
     elif grep -q '^MERITUM_CORPUS_' <<<"$lines"; then
-      fail "$app-$env: corpus writes belong only to worker-prd"
+      fail "$app-$env: the api reads no corpus"
     fi
   done
 done
 # Both env files of an env take their lines from m_app_env.
 [ "$(grep -cF 'm_app_env ' "$here/setup.sh")" = 2 ] || fail "setup.sh: api and worker env files must both call m_app_env"
-grep -qF "corpus_url() { m_db_url \"\$(m_role worker prd)\" \"\$(pw worker prd)\" meritum corpus; }" "$here/setup.sh" \
-  || fail "setup.sh: corpus URL must use the prd worker role and corpus search path"
-grep -qF "m_app_env worker \"\$env\" \"\$(corpus_url)\"" "$here/setup.sh" \
-  || fail "setup.sh: worker env files must receive the corpus URL"
+grep -qF "corpus_url() { m_db_url \"\$(m_role worker \"\$1\")\" \"\$(pw worker \"\$1\")\" meritum corpus; }" "$here/setup.sh" \
+  || fail "setup.sh: corpus URL must use the env's worker role and corpus search path"
+grep -qF "m_app_env worker \"\$env\" \"\$(corpus_url \"\$env\")\"" "$here/setup.sh" \
+  || fail "setup.sh: worker env files must receive the corpus URL of their env"
 grep -qF 'gcp_pii' "$here/setup.sh" \
   || fail "setup.sh: api and worker env files must call gcp_pii when GCP credentials exist"
 grep -qF 'm_pii_env()' "$here/lib.sh" || fail "lib.sh: missing m_pii_env"
@@ -101,3 +107,18 @@ grep -qF 'MERITUM_FACT_CHECK_API_KEY_DEV: ${{ secrets.MERITUM_FACT_CHECK_API_KEY
 # shellcheck disable=SC2016
 grep -qF 'MERITUM_FACT_CHECK_API_KEY_PRD: ${{ secrets.MERITUM_FACT_CHECK_API_KEY_PRD }}' "$here/../../../.github/workflows/platform.yml" || fail "platform.yml: no MERITUM_FACT_CHECK_API_KEY_PRD secret"
 echo "app env: ok"
+# Corpus embeddings (infra#57, D2): Vertex in the EU via ADC, both workers (ingest and search
+# must use one model), no-op without GCP credentials.
+emb=$(m_embeddings_env meritum-example)
+for line in MERITUM_EMBEDDINGS_PROVIDER=vertex MERITUM_EMBEDDINGS_MODEL=gemini-embedding-001 \
+  MERITUM_EMBEDDINGS_REGION=europe-central2 MERITUM_EMBEDDINGS_PROJECT=meritum-example; do
+  grep -qx "$line" <<<"$emb" || fail "m_embeddings_env: no $line"
+done
+grep -qE '^[[:space:]]*gcp_embeddings$' <<<"$(block "worker-\$env.env")" || fail "setup.sh: worker env files must call gcp_embeddings"
+! grep -qE 'gcp_embeddings' <<<"$(block "api-\$env.env")" || fail "setup.sh: api env files must not get embeddings"
+grep -qF 'gcp_embeddings() { :; }' "$here/setup.sh" || fail "setup.sh: gcp_embeddings must be a no-op without GCP credentials"
+# Pinned snapshot (worker: no auto-latest yet): the MERITUM_CORPUS_VERSION_<ENV> repository variable.
+[ "$(m_corpus_version_env 2026-11-22T10:00Z)" = 'MERITUM_CORPUS_VERSION=2026-11-22T10:00Z' ] || fail "m_corpus_version_env: no version line"
+[ -z "$(m_corpus_version_env '')" ] || fail "m_corpus_version_env: empty must write nothing"
+# shellcheck disable=SC2016 # literal text of setup.sh
+grep -qF 'm_corpus_version_env "${!cv_var:-}"' "$here/setup.sh" || fail "setup.sh: worker env files must call m_corpus_version_env"

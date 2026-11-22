@@ -105,3 +105,11 @@ resource "google_project_service" "vision" {
   service            = "vision.googleapis.com"
   disable_on_destroy = false
 }
+
+# Corpus embeddings (infra#57, D2): Vertex AI gemini-embedding-001 in europe-central2 over ADC,
+# as meritum-worker (ingest on prd, search on dev and prd). Only adds the binding.
+resource "google_project_iam_member" "vertex_embeddings" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:meritum-worker@${var.project_id}.iam.gserviceaccount.com"
+}
