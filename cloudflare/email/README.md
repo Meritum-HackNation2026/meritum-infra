@@ -4,7 +4,7 @@ Worker Cloudflare `meritum-email` wysyła moderatorowi e-mail o nowej albo zaktu
 
 ## Żądanie
 
-`POST https://meritum-email.<subdomena>.workers.dev/` z treścią JSON:
+`POST https://meritum-email-<dev|prd>.cypkowski.workers.dev/` z treścią JSON:
 
 ```json
 {
@@ -47,7 +47,7 @@ Temat to tekst `notifications.kind.case_assigned` z `copy/pl.json` („Nowa albo
 
 Listy adresów nie ma w `wrangler.toml`, bo adresy moderatorów to dane osobowe, a te nie trafiają do repozytorium. Z tego samego powodu wiązanie nie ma `allowed_destination_addresses`. Bez włączonego Email Sending Cloudflare i tak dostarcza wyłącznie na adresy zweryfikowane w koncie, a Worker odrzuca kodem 400 każdy adres spoza sekretu. Po włączeniu Email Sending dla domeny Cloudflare przestaje ograniczać odbiorców i jedynym filtrem zostaje ten sekret.
 
-Worker ma publiczny adres `workers.dev` (`workers_dev = true`); każde żądanie bez ważnego podpisu dostaje 401.
+Workery mają publiczne adresy `workers.dev` (`workers_dev = true`); każde żądanie bez ważnego podpisu dostaje 401.
 
 ## Weryfikacja adresów w Email Routing (raz na adres)
 
@@ -64,12 +64,14 @@ Token `CLOUDFLARE_API_TOKEN` w sekretach repo ma tylko uprawnienia Tunnel i DNS,
 cd cloudflare/email
 pnpm install
 pnpm wrangler login                                # albo CLOUDFLARE_API_TOKEN z uprawnieniem Workers Scripts Edit
-pnpm wrangler secret put SIGNING_SECRET            # wartość wklejana w terminalu, nigdy do repozytorium
-pnpm wrangler secret put MODERATOR_ADDRESSES       # np. a@example.com,b@example.com
-pnpm run deploy
+pnpm wrangler deploy --env dev                     # meritum-email-dev; prd analogicznie
+pnpm wrangler secret put SIGNING_SECRET --env dev  # wartość wklejana w terminalu, nigdy do repozytorium
+pnpm wrangler secret put MODERATOR_ADDRESSES --env dev  # np. a@example.com,b@example.com
 ```
 
-Adres Workera z wyniku `deploy` oraz `SIGNING_SECRET` trafiają do konfiguracji backendu (sekret, nie plik w repozytorium). Zmiana listy moderatorów to ponowne `wrangler secret put MODERATOR_ADDRESSES`, bez nowego wdrożenia kodu.
+Każde środowisko backendu ma własny Worker (`meritum-email-dev`, `meritum-email-prd`) z własnym `SIGNING_SECRET`, a `PANEL_ORIGINS` przyjmuje tylko panel swojego środowiska. Adres Workera trafia do zmiennej `EMAIL_WORKER_URL_{DEV,PRD}`, a `SIGNING_SECRET` do sekretu `MERITUM_EMAIL_WORKER_SIGNING_SECRET_{DEV,PRD}` w meritum-backend. Zmiana listy moderatorów to ponowne `wrangler secret put MODERATOR_ADDRESSES --env <dev|prd>`, bez nowego wdrożenia kodu.
+
+Konto ma aplikację Cloudflare Access na `*.cypkowski.workers.dev`, która bez wyjątku przekierowałaby backend na logowanie (302). Hosty obu Workerów są dlatego w aplikacji Access „meritum-email Worker (bypass, HMAC in Worker)” z polityką Bypass; nowy host trzeba tam dopisać, bo dostęp i tak sprawdza podpis HMAC w Workerze.
 
 ## Region i rejestr podmiotów przetwarzających
 
