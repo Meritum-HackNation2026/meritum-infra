@@ -49,4 +49,15 @@ pii=$(m_pii_env meritum-example)
 grep -qx 'MERITUM_PII_GATE=sdp' <<<"$pii" || fail "m_pii_env: no MERITUM_PII_GATE=sdp"
 grep -qx 'MERITUM_PII_PROJECT=meritum-example' <<<"$pii" || fail "m_pii_env: project from argument"
 grep -qx 'MERITUM_PII_LOCATION=europe-central2' <<<"$pii" || fail "m_pii_env: location europe-central2"
+# Live web search (infra#42): Vertex AI Search app of infra#16, only for the dev worker.
+grep -qF 'm_web_search_env()' "$here/lib.sh" || fail "lib.sh: missing m_web_search_env"
+ws=$(m_web_search_env worker dev 196419832223)
+for line in MERITUM_WEB_SEARCH_PROVIDER=vertex_search MERITUM_WEB_SEARCH_PROJECT=196419832223 MERITUM_WEB_SEARCH_ENGINE=meritum-live-search; do
+  grep -qx "$line" <<<"$ws" || fail "m_web_search_env: worker-dev has no $line"
+done
+for other in "api dev" "api prd" "worker prd"; do
+  # shellcheck disable=SC2086
+  [ -z "$(m_web_search_env $other 196419832223)" ] || fail "m_web_search_env: $other must get no web search"
+done
+grep -qF "gcp_web_search worker \"\$env\"" "$here/setup.sh" || fail "setup.sh: worker env files must call gcp_web_search"
 echo "app env: ok"
