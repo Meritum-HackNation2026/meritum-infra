@@ -1,4 +1,6 @@
 # Moderator e-mail Worker (infra#10). Deploy and secrets: README.md in this folder.
+# One Worker per backend environment: `wrangler deploy --env dev|prd` gives
+# meritum-email-dev and meritum-email-prd, each with its own secrets.
 name = "meritum-email"
 main = "src/index.ts"
 compatibility_date = "2026-11-01"
@@ -7,6 +9,7 @@ workers_dev = true
 # Cloudflare Email Routing delivers only to destination addresses verified in the account.
 # The moderator list itself is the MODERATOR_ADDRESSES secret, not this file: the addresses
 # are personal data and stay out of the repository.
+# Bindings and vars are not inherited by environments, so each env repeats them.
 [[send_email]]
 name = "SEND_EMAIL"
 
@@ -14,4 +17,18 @@ name = "SEND_EMAIL"
 FROM_ADDRESS = "meritum@gburek.app"
 PANEL_ORIGINS = "https://meritum.gburek.app,https://meritum-dev.gburek.app"
 
-# Secrets (wrangler secret put): SIGNING_SECRET, MODERATOR_ADDRESSES.
+[[env.dev.send_email]]
+name = "SEND_EMAIL"
+
+[env.dev.vars]
+FROM_ADDRESS = "meritum@gburek.app"
+PANEL_ORIGINS = "https://meritum-dev.gburek.app"
+
+[[env.prd.send_email]]
+name = "SEND_EMAIL"
+
+[env.prd.vars]
+FROM_ADDRESS = "meritum@gburek.app"
+PANEL_ORIGINS = "https://meritum.gburek.app"
+
+# Secrets (wrangler secret put [--env dev|prd]): SIGNING_SECRET, MODERATOR_ADDRESSES.
